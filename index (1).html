@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ISL RDK Cabins — QC-3 Module Checklist</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;min-height:100vh}
+.top-bar{background:#1a1a2e;color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;position:sticky;top:0;z-index:100}
+.top-bar-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.top-bar-title{font-size:15px;font-weight:700}
+.top-bar-sub{font-size:11px;opacity:0.6}
+.top-bar-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.module-select{padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.1);color:#fff;font-size:13px;cursor:pointer;font-family:Arial}
+.module-select option{background:#1a1a2e;color:#fff}
+.drive-btn{font-size:12px;padding:6px 14px;border-radius:20px;border:1px solid rgba(255,255,255,0.3);cursor:pointer;background:transparent;color:#fff;font-family:Arial}
+.drive-btn.connected{background:#1D9E75;border-color:#1D9E75}
+.btn-save{padding:7px 16px;border:1px solid #378ADD;border-radius:8px;background:#378ADD;color:#fff;font-size:13px;cursor:pointer;font-family:Arial}
+.btn-save:hover{background:#2570c0}
+.btn-export{padding:7px 16px;border:1px solid #1D9E75;border-radius:8px;background:#1D9E75;color:#fff;font-size:13px;cursor:pointer;font-family:Arial;font-weight:700}
+.btn-export:hover{background:#178a64}
+.save-status{font-size:11px;color:#aaa}
+.container{max-width:960px;margin:0 auto;padding:16px}
+.drive-info{background:#e8f4ff;border:1px solid #b3d4f5;border-radius:8px;padding:10px 14px;font-size:12px;color:#1a5a8a;margin-bottom:14px}
+.module-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.module-tab{padding:5px 14px;border:1px solid #ddd;border-radius:20px;background:#fff;color:#666;font-size:12px;cursor:pointer;transition:all 0.15s}
+.module-tab:hover{background:#f0f0f0}
+.module-tab.active{background:#1a1a2e;border-color:#1a1a2e;color:#fff;font-weight:700}
+.module-tab.has-data{border-color:#1D9E75;color:#1D9E75}
+.module-tab.has-data.active{background:#1a1a2e;color:#fff;border-color:#1a1a2e}
+.card{background:#fff;border-radius:10px;border:1px solid #e0e0e0;padding:16px 20px;margin-bottom:14px}
+.meta-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.meta-row input{flex:1;min-width:150px;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;font-family:Arial}
+.meta-row input:focus{outline:none;border-color:#1a1a2e}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:14px}
+.stat{background:#f8f8f8;border-radius:8px;padding:10px;text-align:center;border:1px solid #eee}
+.stat .val{font-size:22px;font-weight:700}
+.stat .lbl{font-size:11px;color:#888;margin-top:2px}
+.stat.ok .val{color:#1D9E75}
+.stat.rej .val{color:#E24B4A}
+.stat.pend .val{color:#EF9F27}
+.progress-bar{background:#eee;border-radius:4px;height:7px;overflow:hidden;margin-bottom:4px}
+.progress-fill{height:100%;background:#1D9E75;border-radius:4px;transition:width 0.4s}
+.prog-text{font-size:12px;color:#888;margin-bottom:14px}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.filter-btn{padding:5px 14px;border:1px solid #ddd;border-radius:20px;background:#fff;color:#666;font-size:12px;cursor:pointer}
+.filter-btn.active{background:#1a1a2e;border-color:#1a1a2e;color:#fff}
+.section-label{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:0.6px;padding:10px 0 5px;margin-top:4px}
+.item{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:13px 15px;margin-bottom:8px}
+.item.accepted{border-left:4px solid #1D9E75}
+.item.rejected{border-left:4px solid #E24B4A}
+.item-top{display:flex;align-items:flex-start;gap:10px}
+.item-num{font-size:11px;font-weight:700;color:#aaa;min-width:24px;padding-top:2px}
+.item-sec-badge{font-size:10px;padding:2px 8px;border-radius:10px;background:#f0f0f0;color:#666;white-space:nowrap;flex-shrink:0;margin-top:1px}
+.item-desc{flex:1;font-size:13px;line-height:1.5}
+.item-actions{display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.btn-accept{padding:5px 13px;border:1px solid #ccc;border-radius:7px;font-size:12px;cursor:pointer;background:#fff;color:#555;font-family:Arial}
+.btn-accept:hover{background:#f0faf5}
+.btn-accept.active{background:#e6f7f0;border-color:#1D9E75;color:#1D9E75;font-weight:700}
+.btn-reject{padding:5px 13px;border:1px solid #ccc;border-radius:7px;font-size:12px;cursor:pointer;background:#fff;color:#555;font-family:Arial}
+.btn-reject:hover{background:#fff5f5}
+.btn-reject.active{background:#fef0f0;border-color:#E24B4A;color:#E24B4A;font-weight:700}
+.btn-photo{padding:5px 11px;border:1px dashed #aaa;border-radius:7px;font-size:12px;cursor:pointer;background:transparent;color:#666;font-family:Arial}
+.btn-photo:hover{background:#f5f5f5}
+.notes-inp{flex:1;min-width:130px;padding:5px 10px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-family:Arial}
+.notes-inp:focus{outline:none;border-color:#1a1a2e}
+.btn-del{padding:4px 9px;border:1px solid #fcc;border-radius:7px;font-size:11px;cursor:pointer;background:#fff8f8;color:#E24B4A;font-family:Arial}
+.photos-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.thumb{position:relative;width:68px;height:68px;border-radius:7px;overflow:hidden;border:1px solid #ddd;flex-shrink:0}
+.thumb img{width:100%;height:100%;object-fit:cover;cursor:pointer;display:block}
+.thumb .del-p{position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.65);border:none;color:#fff;border-radius:3px;padding:1px 5px;font-size:10px;cursor:pointer;line-height:1.5}
+.add-form{background:#f9f9f9;border:1px solid #e0e0e0;border-radius:10px;padding:15px;margin-top:10px}
+.add-form h3{font-size:13px;font-weight:700;margin-bottom:10px;color:#444}
+.add-form .row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.add-form input,.add-form textarea{padding:7px 10px;border:1px solid #ddd;border-radius:7px;background:#fff;font-size:13px;font-family:Arial}
+.add-form input:focus,.add-form textarea:focus{outline:none;border-color:#1a1a2e}
+.btn-add{padding:8px 18px;border:1px solid #1a1a2e;border-radius:7px;background:#1a1a2e;color:#fff;font-size:13px;cursor:pointer;font-family:Arial}
+.lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;align-items:center;justify-content:center}
+.lightbox.open{display:flex}
+.lightbox img{max-width:92%;max-height:92%;border-radius:8px}
+.lightbox-close{position:absolute;top:16px;right:20px;color:#fff;font-size:32px;cursor:pointer;background:none;border:none;line-height:1}
+.overview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px}
+.overview-card{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:12px;text-align:center;cursor:pointer;transition:all 0.15s}
+.overview-card:hover{border-color:#1a1a2e}
+.overview-card.active-mod{border-color:#1a1a2e;border-width:2px}
+.overview-card .mod-name{font-size:14px;font-weight:700;margin-bottom:6px}
+.overview-card .mod-ok{color:#1D9E75;font-size:12px}
+.overview-card .mod-rej{color:#E24B4A;font-size:12px}
+.overview-card .mod-pend{color:#EF9F27;font-size:12px}
+.overview-card .mod-bar{background:#eee;border-radius:3px;height:4px;margin-top:6px;overflow:hidden}
+.overview-card .mod-bar-fill{height:100%;background:#1D9E75;border-radius:3px}
+@media(max-width:600px){.item-actions{gap:4px}.meta-row input{min-width:100%}}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="top-bar-left">
+    <div>
+      <div class="top-bar-title">ISL RDK Cabins — QC-3</div>
+      <div class="top-bar-sub">Module Checklist</div>
+    </div>
+    <select class="module-select" id="module-select" onchange="switchModule(this.value)">
+      <option value="">— Select module —</option>
+    </select>
+  </div>
+  <div class="top-bar-right">
+    <span class="save-status" id="save-status"></span>
+    <button class="drive-btn" id="drive-btn" onclick="handleDriveAuth()">&#9679; Connect Google Drive</button>
+    <button class="btn-save" onclick="saveToDrive()">&#8679; Save</button>
+    <button class="btn-export" onclick="exportProtocol()">&#8681; Export Protocol</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="drive-info" id="drive-info" style="display:none">
+    &#10003; Connected to Google Drive. All data saved to folder <strong>ISL_RDK_QC</strong>. &nbsp;<span id="drive-folder-link"></span>
+  </div>
+
+  <div class="overview-grid" id="overview-grid"></div>
+
+  <div id="module-content" style="display:none">
+    <div class="card">
+      <div class="meta-row">
+        <input type="text" id="inspector-input" placeholder="Quality controller name"/>
+        <input type="text" id="pm-input" placeholder="Project manager name"/>
+        <input type="date" id="date-input"/>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+      <div class="prog-text" id="prog-text">0 of 44 checked (0%)</div>
+      <div class="stats">
+        <div class="stat ok"><div class="val" id="s-ok">0</div><div class="lbl">Accepted</div></div>
+        <div class="stat rej"><div class="val" id="s-rej">0</div><div class="lbl">Rejected</div></div>
+        <div class="stat pend"><div class="val" id="s-pend">44</div><div class="lbl">Pending</div></div>
+        <div class="stat"><div class="val" id="s-photos">0</div><div class="lbl">Photos</div></div>
+      </div>
+    </div>
+
+    <div class="filters">
+      <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+      <button class="filter-btn" onclick="setFilter('pending',this)">Pending</button>
+      <button class="filter-btn" onclick="setFilter('accepted',this)">Accepted</button>
+      <button class="filter-btn" onclick="setFilter('rejected',this)">Rejected</button>
+      <button class="filter-btn" onclick="setFilter('photos',this)">With photos</button>
+    </div>
+
+    <div id="checklist"></div>
+
+    <div class="add-form">
+      <h3>+ Add new inspection item</h3>
+      <div class="row">
+        <input type="text" id="new-section" placeholder="Section (e.g. Electricians)" style="flex:1;min-width:140px"/>
+        <textarea id="new-desc" placeholder="Work description..." rows="2" style="flex:2;min-width:200px;resize:vertical"></textarea>
+      </div>
+      <button class="btn-add" onclick="addItem()">+ Add item</button>
+    </div>
+  </div>
+
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <button class="lightbox-close" onclick="document.getElementById('lightbox').classList.remove('open')">&times;</button>
+  <img id="lightbox-img" src="" alt="Full size photo"/>
+</div>
+<input type="file" id="file-input" accept="image/*" multiple style="display:none" onchange="handlePhotos(event)"/>
+
+<script src="https://apis.google.com/js/api.js"></script>
+<script>
+const CLIENT_ID='433432963029-da3nhrredpd9t0dk6b8bb1juh7n156av.apps.googleusercontent.com';
+const SCOPES='https://www.googleapis.com/auth/drive.file';
+const FOLDER_NAME='ISL_RDK_QC';
+const MODULE_NAMES=['L-1','L-2','L-3','L-4','L-5','L-6','L-7','L-8','L-9','L-10','L-11','L-12','L-13','L-14','L-15'];
+
+const ITEMS_TEMPLATE=[
+  {id:1,section:"Water supply, HVAC",desc:"Water supply and heating networks have been installed in accordance with the drawings. Pipes are marked, and pipe ends are sealed. (Panel table, 1 station)"},
+  {id:2,section:"Water supply, HVAC",desc:"Sewage pipes have been securely fixed with correct slopes. Pipe ends are properly sealed. Sewage pipe water test has been completed."},
+  {id:3,section:"Electricians",desc:"Installation of electrical insulation corrugated pipes in floor or ceiling panels has been carried out in accordance with the drawings and instructions."},
+  {id:4,section:"Frame, panels",desc:"Floor panel insulation has been installed correctly. Vapour membrane strips have been applied in accordance with the drawings and instructions."},
+  {id:5,section:"Frame, panels",desc:"Panel layers conform to the design drawings. Nailing and fixing of the panels comply with the specified nailing instructions. OSB edges have been treated with waterproofing."},
+  {id:6,section:"Module assembly",desc:"The positions of the walls, floor, and ceiling panels correspond to the design. The relative angles between panels are 90°."},
+  {id:7,section:"Module assembly",desc:"Module airtightness complies with project specifications; vapor membrane has been properly glued. Shafts and wall corners are sealed."},
+  {id:8,section:"Module assembly",desc:"Module panel interconnections have been completed in accordance with the specified installation guidelines."},
+  {id:9,section:"Foreman",desc:"Checklists for all module panels have been received (Form No. QC-1)."},
+  {id:10,section:"Quality controller",desc:"Acceptance of the module frame has been carried out in accordance with the project drawings and instructions (Form No. QC-2)."},
+  {id:11,section:"Electricians",desc:"Electrical wiring installation, incl. boreholes, boxes & sealing confirm to project drawings."},
+  {id:12,section:"Water supply, HVAC",desc:"Water supply and sewerage networks have been installed in accordance with the design drawings. Outlet holes, including pipe ends and connection points, are hermetically sealed. Pipes are properly marked."},
+  {id:13,section:"Water supply, HVAC",desc:"Water and heating collectors have been installed. Collector valve markings are clearly indicated, and heating loop / radiator numbers are duplicated for clarity."},
+  {id:14,section:"Water supply, HVAC",desc:"Pressure tests of the water supply network have been completed prior to wall covering with panel materials (Form No. QC-5)."},
+  {id:15,section:"Water supply, HVAC",desc:"Ventilation network installation for the bathroom exhaust is carried out in accordance with the project documentation. Sealing of all duct joints and wall interfaces has been completed to ensure airtightness."},
+  {id:16,section:"Windows / doors",desc:"Windows in walls have been installed in accordance with the project drawings and installation guidelines. Sealing tapes and thermal insulation are applied properly and meet the required standards."},
+  {id:17,section:"Windows / doors",desc:"Windows in roof panels have been installed in accordance with the project drawings and installation guidelines. Sealing tapes and thermal insulation are applied properly and meet the required standards."},
+  {id:18,section:"Windows / doors",desc:"Installation of entrance door frames complies with the design drawings and manufacturer's instructions. Insulation has been correctly installed, and the frames are properly protected."},
+  {id:19,section:"Windows / doors",desc:"Internal window sills have been installed. Finishing around windows and doorways is complete."},
+  {id:20,section:"Frame interior finish",desc:"Thermal insulation in the interior walls has been installed correctly, without gaps. Insulation characteristics have been verified. Additional plywood reinforcements have been attached. Dust membrane covers the insulation."},
+  {id:21,section:"Frame exterior finish",desc:"External wall thermal insulation has been properly installed with no gaps. Specified insulation properties, such as thermal conductivity (λ) and thickness, have been observed and confirmed."},
+  {id:22,section:"Frame exterior finish",desc:"The cladding of the module's outer frame (Swisspearl Windstopper) has been installed in accordance with the design drawings. Nailing spacing has been followed as specified."},
+  {id:23,section:"Electricians",desc:"Distribution box installation is complete. Electrical corrugated conduits have been installed, branch boxes assembled, cables marked, and grounding system properly connected."},
+  {id:24,section:"\"Black\" floor",desc:"Floor gypsum plates has been laid in both the main room and the bathroom. The layers are bonded together."},
+  {id:25,section:"Tiling",desc:"Bathroom slopes have been formed in accordance with applicable standards. Waterproofing has been installed following the specified technology."},
+  {id:26,section:"Tiling",desc:"WC tiles have been installed correctly in accordance with the tile layouts and specified technology. Grouting and silicone sealing have been completed."},
+  {id:27,section:"Frame exterior finish",desc:"The diffusion membrane has been installed on the exterior walls. Joints are properly aligned, and joint tape has been applied."},
+  {id:28,section:"Exterior finish",desc:"The external window and door sills have been installed in accordance with the design drawings. Fasteners have been applied as per the manufacturer's instructions."},
+  {id:29,section:"Exterior finish",desc:"Facade lathing has been installed in accordance with the design drawings."},
+  {id:30,section:"Int. finishing, painting",desc:"Wall finishing with interior boards has been completed. Multiple board types were used. No visible defects were observed. 1st floor."},
+  {id:31,section:"Int. finishing, painting",desc:"Wall finishing with interior boards has been completed. Multiple board types were used. No visible defects were observed. 2nd floor."},
+  {id:32,section:"Furniture, floor finish",desc:"The substrate for the flooring has been prepared. Flooring has been installed and adhered according to the manufacturer's guidelines and layout specifications. No visible defects were observed. 1st floor."},
+  {id:33,section:"Furniture, floor finish",desc:"The substrate for the flooring has been prepared. Flooring has been installed and adhered according to the manufacturer's guidelines and layout specifications. No visible defects were observed. 2nd floor."},
+  {id:34,section:"Furniture",desc:"Furniture assembly has been completed according to the project specifications. Cabinets are securely fixed, fittings are functional, and adjustments have been performed."},
+  {id:35,section:"Finishing, furniture",desc:"Assembly of interior doors has been completed. Door hardware conforms to the design specifications."},
+  {id:36,section:"Finishing, furniture",desc:"Skirting boards and door moldings have been installed in accordance with the specified installation procedures. Joints have been properly executed."},
+  {id:37,section:"Bathroom finishing",desc:"Installation of bathroom furniture and equipment has been completed as per the project specifications and manufacturer's guidelines."},
+  {id:38,section:"Bathroom finishing",desc:"Glass partitions for the bathroom shower have been installed in accordance with the design drawings and manufacturer's specifications. All fittings are functioning correctly."},
+  {id:39,section:"Water supply, HVAC",desc:"Additional measurements of the water supply system were performed with water mixers and shower equipment connected. No leaks were detected or required repair (see Form QC-5)."},
+  {id:40,section:"Electricians",desc:"Installation of sockets, lighting fixtures, and switches has been completed. All electrical equipment has been installed in accordance with specified technical requirements. The distribution box has been connected."},
+  {id:41,section:"Electricians",desc:"The operation of lighting, sockets, and switches has been tested and confirmed to be in full compliance with the project specifications."},
+  {id:42,section:"Electricians, foreman",desc:"Electrical measurements have been performed. No deviations from the standards were recorded (refer to Forms QC-6 and QC-7)."},
+  {id:43,section:"Module packaging",desc:"The module has been cleaned. Equipment, furniture, and accompanying materials have been secured. An inventory check of installed materials has been completed."},
+  {id:44,section:"Module packaging",desc:"Protective frame has been installed. The module has been packed in accordance with the instructions, and the labeling is correct."}
+];
+
+function freshItems(){return ITEMS_TEMPLATE.map(i=>({...i,status:'pending',notes:'',acceptedDate:'',rejectedDate:'',photos:[],photoIds:[]}));}
+
+// modules[modName] = { meta:{inspector,pm,date}, items:[...] }
+let modules={};
+MODULE_NAMES.forEach(n=>{modules[n]={meta:{inspector:'',pm:'',date:''},items:freshItems()};});
+
+let currentModule=null;
+let filter='all';
+let currentPhotoItemId=null;
+let driveConnected=false;
+let folderId=null;
+let driveFileIds={};// modName -> fileId
+
+function getModState(){return currentModule?modules[currentModule]:null;}
+
+// ---- DROPDOWN + OVERVIEW ----
+function initDropdown(){
+  const sel=document.getElementById('module-select');
+  MODULE_NAMES.forEach(n=>{
+    const o=document.createElement('option');
+    o.value=n;o.textContent=n;
+    sel.appendChild(o);
+  });
+}
+
+function renderOverview(){
+  const grid=document.getElementById('overview-grid');
+  let html='';
+  MODULE_NAMES.forEach(n=>{
+    const mod=modules[n];
+    const ok=mod.items.filter(i=>i.status==='accepted').length;
+    const rej=mod.items.filter(i=>i.status==='rejected').length;
+    const pend=mod.items.filter(i=>i.status==='pending').length;
+    const total=mod.items.length;
+    const pct=total?Math.round((ok+rej)/total*100):0;
+    const isCurrent=n===currentModule;
+    const hasData=ok>0||rej>0;
+    html+=`<div class="overview-card ${isCurrent?'active-mod':''} ${hasData&&!isCurrent?'':''}\" onclick="switchModule('${n}')">
+      <div class="mod-name">${n}</div>
+      <div class="mod-ok">&#10003; ${ok}</div>
+      <div class="mod-rej">&#10007; ${rej}</div>
+      <div class="mod-pend">&#9679; ${pend} pending</div>
+      <div class="mod-bar"><div class="mod-bar-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  });
+  grid.innerHTML=html;
+}
+
+function switchModule(name){
+  if(!name) return;
+  // save current meta before switching
+  if(currentModule){
+    modules[currentModule].meta.inspector=document.getElementById('inspector-input').value;
+    modules[currentModule].meta.pm=document.getElementById('pm-input').value;
+    modules[currentModule].meta.date=document.getElementById('date-input').value;
+  }
+  currentModule=name;
+  document.getElementById('module-select').value=name;
+  document.getElementById('module-content').style.display='block';
+  const meta=modules[name].meta;
+  document.getElementById('inspector-input').value=meta.inspector||'';
+  document.getElementById('pm-input').value=meta.pm||'';
+  document.getElementById('date-input').value=meta.date||new Date().toISOString().split('T')[0];
+  filter='all';
+  document.querySelectorAll('.filter-btn').forEach(b=>{b.classList.toggle('active',b.textContent.trim()==='All');});
+  render();
+  renderOverview();
+}
+
+// ---- RENDER ----
+function render(){
+  const mod=getModState();
+  if(!mod) return;
+  const list=document.getElementById('checklist');
+  const sections={};
+  const filtered=mod.items.filter(i=>{
+    if(filter==='pending') return i.status==='pending';
+    if(filter==='accepted') return i.status==='accepted';
+    if(filter==='rejected') return i.status==='rejected';
+    if(filter==='photos') return i.photos.length>0;
+    return true;
+  });
+  filtered.forEach(i=>{if(!sections[i.section])sections[i.section]=[];sections[i.section].push(i);});
+  let html='';
+  Object.entries(sections).forEach(([sec,items])=>{
+    html+=`<div class="section-label">${sec}</div>`;
+    items.forEach(i=>{
+      const cls=i.status==='accepted'?'accepted':i.status==='rejected'?'rejected':'';
+      html+=`<div class="item ${cls}">
+        <div class="item-top">
+          <span class="item-num">#${i.id}</span>
+          <span class="item-sec-badge">${i.section}</span>
+          <span class="item-desc">${i.desc}</span>
+        </div>
+        <div class="item-actions">
+          <button class="btn-accept ${i.status==='accepted'?'active':''}" onclick="setItemStatus(${i.id},'accepted')">&#10003; Quality accepted</button>
+          <button class="btn-reject ${i.status==='rejected'?'active':''}" onclick="setItemStatus(${i.id},'rejected')">&#10007; Rejected</button>
+          <button class="btn-photo" onclick="openPhotoUpload(${i.id})">&#128247; Photo (${i.photos.length})</button>
+          <input class="notes-inp" type="text" placeholder="Notes..." value="${escH(i.notes)}" onchange="setNotes(${i.id},this.value)"/>
+          <button class="btn-del" onclick="delItem(${i.id})">&#128465;</button>
+        </div>`;
+      if(i.photos.length>0){
+        html+=`<div class="photos-row">`;
+        i.photos.forEach((p,idx)=>{
+          html+=`<div class="thumb"><img src="${p}" onclick="openLightbox('${p}')" alt="Photo ${idx+1}"/><button class="del-p" onclick="delPhoto(${i.id},${idx})">&#10005;</button></div>`;
+        });
+        html+='</div>';
+      }
+      html+='</div>';
+    });
+  });
+  list.innerHTML=html||'<p style="color:#aaa;padding:20px;text-align:center">No matching items</p>';
+  updateStats();
+}
+
+function escH(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+
+function setItemStatus(id,s){
+  const mod=getModState();if(!mod)return;
+  const item=mod.items.find(i=>i.id===id);if(!item)return;
+  const now=new Date().toLocaleDateString('en-GB');
+  if(item.status===s){item.status='pending';item.acceptedDate='';item.rejectedDate='';}
+  else{item.status=s;item.acceptedDate=s==='accepted'?now:'';item.rejectedDate=s==='rejected'?now:'';}
+  render();renderOverview();autoSave();
+}
+function setNotes(id,v){const mod=getModState();if(!mod)return;const i=mod.items.find(i=>i.id===id);if(i){i.notes=v;autoSave();}}
+function delItem(id){if(!confirm('Delete this item?'))return;const mod=getModState();if(!mod)return;mod.items=mod.items.filter(i=>i.id!==id);render();autoSave();}
+function delPhoto(id,idx){const mod=getModState();if(!mod)return;const i=mod.items.find(i=>i.id===id);if(i){i.photos.splice(idx,1);i.photoIds.splice(idx,1);render();autoSave();}}
+
+function updateStats(){
+  const mod=getModState();if(!mod)return;
+  const ok=mod.items.filter(i=>i.status==='accepted').length;
+  const rej=mod.items.filter(i=>i.status==='rejected').length;
+  const pend=mod.items.filter(i=>i.status==='pending').length;
+  const photos=mod.items.reduce((s,i)=>s+i.photos.length,0);
+  document.getElementById('s-ok').textContent=ok;
+  document.getElementById('s-rej').textContent=rej;
+  document.getElementById('s-pend').textContent=pend;
+  document.getElementById('s-photos').textContent=photos;
+  const total=mod.items.length,done=ok+rej,pct=total?Math.round(done/total*100):0;
+  document.getElementById('prog-fill').style.width=pct+'%';
+  document.getElementById('prog-text').textContent=`${done} of ${total} checked (${pct}%) — Module ${currentModule}`;
+}
+
+function setFilter(f,btn){
+  filter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function addItem(){
+  const mod=getModState();if(!mod)return;
+  const sec=document.getElementById('new-section').value.trim();
+  const desc=document.getElementById('new-desc').value.trim();
+  if(!sec||!desc){alert('Please fill in section and description.');return;}
+  const maxId=Math.max(...mod.items.map(i=>i.id),0);
+  mod.items.push({id:maxId+1,section:sec,desc,status:'pending',notes:'',acceptedDate:'',rejectedDate:'',photos:[],photoIds:[]});
+  document.getElementById('new-section').value='';
+  document.getElementById('new-desc').value='';
+  render();autoSave();
+}
+
+function openPhotoUpload(id){currentPhotoItemId=id;document.getElementById('file-input').click();}
+
+async function handlePhotos(e){
+  const files=[...e.target.files];
+  const mod=getModState();if(!mod)return;
+  const item=mod.items.find(i=>i.id===currentPhotoItemId);if(!item)return;
+  for(const f of files){
+    const dataUrl=await readFile(f);
+    item.photos.push(dataUrl);
+    item.photoIds.push(null);
+    render();
+    if(driveConnected&&folderId){
+      setStatus('Uploading photo to Drive...');
+      const fname=`${currentModule}_item${item.id}_${Date.now()}.jpg`;
+      const driveId=await uploadPhotoToDrive(dataUrl,fname);
+      item.photoIds[item.photoIds.length-1]=driveId;
+      setStatus('Photo saved ✓');
+      autoSave();
+    }
+  }
+  e.target.value='';
+}
+
+function readFile(f){return new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsDataURL(f);});}
+function openLightbox(src){document.getElementById('lightbox-img').src=src;document.getElementById('lightbox').classList.add('open');}
+function closeLightbox(e){if(e.target===document.getElementById('lightbox'))document.getElementById('lightbox').classList.remove('open');}
+function setStatus(msg){document.getElementById('save-status').textContent=msg;}
+
+let autoSaveTimer=null;
+function autoSave(){
+  // save meta
+  if(currentModule){
+    modules[currentModule].meta.inspector=document.getElementById('inspector-input').value;
+    modules[currentModule].meta.pm=document.getElementById('pm-input').value;
+    modules[currentModule].meta.date=document.getElementById('date-input').value;
+  }
+  clearTimeout(autoSaveTimer);
+  autoSaveTimer=setTimeout(()=>{if(driveConnected)saveToDrive();},3000);
+}
+
+// ---- GOOGLE DRIVE ----
+let tokenClient,gapiInited=false,gisInited=false;
+
+function gapiLoaded(){
+  gapi.load('client',async()=>{
+    await gapi.client.init({});
+    gapiInited=true;maybeEnableDrive();
+  });
+}
+function gisLoaded(){
+  tokenClient=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPES,callback:''});
+  gisInited=true;maybeEnableDrive();
+}
+function maybeEnableDrive(){
+  if(gapiInited&&gisInited){
+    const saved=localStorage.getItem('qc_drive_token');
+    if(saved){gapi.client.setToken(JSON.parse(saved));driveConnected=true;updateDriveUI(true);ensureFolderAndLoad();}
+  }
+}
+function handleDriveAuth(){
+  tokenClient.callback=async(resp)=>{
+    if(resp.error)return;
+    localStorage.setItem('qc_drive_token',JSON.stringify(gapi.client.getToken()));
+    driveConnected=true;updateDriveUI(true);setStatus('Connected to Google Drive');
+    await ensureFolderAndLoad();
+  };
+  tokenClient.requestAccessToken({prompt:'consent'});
+}
+function updateDriveUI(connected){
+  const btn=document.getElementById('drive-btn');
+  const info=document.getElementById('drive-info');
+  btn.textContent=connected?'✓ Google Drive connected':'⬤ Connect Google Drive';
+  btn.className=connected?'drive-btn connected':'drive-btn';
+  info.style.display=connected?'block':'none';
+}
+
+async function ensureFolderAndLoad(){
+  try{
+    setStatus('Checking Drive folder...');
+    let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id,name,webViewLink)'}});
+    let files=res.result.files;
+    if(files&&files.length>0){
+      folderId=files[0].id;
+      document.getElementById('drive-folder-link').innerHTML=`<a href="${files[0].webViewLink}" target="_blank">Open in Drive</a>`;
+    } else {
+      let cr=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',method:'POST',body:{name:FOLDER_NAME,mimeType:'application/vnd.google-apps.folder'}});
+      folderId=cr.result.id;
+    }
+    await loadAllFromDrive();
+  }catch(e){setStatus('Drive error: '+e.message);}
+}
+
+async function loadAllFromDrive(){
+  setStatus('Loading modules from Drive...');
+  for(const modName of MODULE_NAMES){
+    await loadModuleFromDrive(modName);
+  }
+  setStatus('All modules loaded ✓');
+  if(currentModule) render();
+  renderOverview();
+}
+
+async function loadModuleFromDrive(modName){
+  try{
+    const fname=`qc_${modName.replace('-','')}.json`;
+    let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and '${folderId}' in parents and trashed=false`,fields:'files(id,name)'}});
+    let files=res.result.files;
+    if(files&&files.length>0){
+      driveFileIds[modName]=files[0].id;
+      let dl=await gapi.client.request({path:`https://www.googleapis.com/drive/v3/files/${files[0].id}`,params:{alt:'media'}});
+      const saved=dl.result;
+      if(saved&&saved.items){
+        saved.items.forEach(si=>{
+          let cur=modules[modName].items.find(i=>i.id===si.id);
+          if(cur){cur.status=si.status||'pending';cur.notes=si.notes||'';cur.acceptedDate=si.acceptedDate||'';cur.rejectedDate=si.rejectedDate||'';cur.photoIds=si.photoIds||[];cur.photos=si.photos||[];}
+        });
+      }
+      if(saved&&saved.meta) modules[modName].meta=saved.meta;
+    }
+  }catch(e){console.warn('Load error for '+modName,e);}
+}
+
+async function saveToDrive(){
+  if(!driveConnected){alert('Please connect Google Drive first.');return;}
+  if(!currentModule){alert('Please select a module first.');return;}
+  // save current meta
+  modules[currentModule].meta.inspector=document.getElementById('inspector-input').value;
+  modules[currentModule].meta.pm=document.getElementById('pm-input').value;
+  modules[currentModule].meta.date=document.getElementById('date-input').value;
+  setStatus('Saving...');
+  try{
+    const modName=currentModule;
+    const fname=`qc_${modName.replace('-','')}.json`;
+    const payload={meta:modules[modName].meta,items:modules[modName].items.map(i=>({id:i.id,section:i.section,desc:i.desc,status:i.status,notes:i.notes,acceptedDate:i.acceptedDate,rejectedDate:i.rejectedDate,photoIds:i.photoIds,photos:i.photos}))};
+    const body=JSON.stringify(payload);
+    if(driveFileIds[modName]){
+      await gapi.client.request({path:`https://www.googleapis.com/upload/drive/v3/files/${driveFileIds[modName]}`,method:'PATCH',params:{uploadType:'media'},headers:{'Content-Type':'application/json'},body});
+    } else {
+      const meta={name:fname,parents:[folderId]};
+      const boundary='bound_xyz';
+      const mp=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
+      let cr=await gapi.client.request({path:'https://www.googleapis.com/upload/drive/v3/files',method:'POST',params:{uploadType:'multipart'},headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body:mp});
+      driveFileIds[modName]=cr.result.id;
+    }
+    setStatus('Saved ✓ '+new Date().toLocaleTimeString());
+    renderOverview();
+  }catch(e){setStatus('Save error: '+e.message);}
+}
+
+async function uploadPhotoToDrive(dataUrl,filename){
+  if(!driveConnected||!folderId)return null;
+  try{
+    const base64=dataUrl.split(',')[1];
+    const mime=dataUrl.split(';')[0].split(':')[1];
+    const meta={name:filename,parents:[folderId]};
+    const boundary='photo_bound';
+    const body=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: ${mime}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
+    let res=await gapi.client.request({path:'https://www.googleapis.com/upload/drive/v3/files',method:'POST',params:{uploadType:'multipart'},headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body});
+    return res.result.id;
+  }catch(e){console.error('Photo upload error:',e);return null;}
+}
+
+// ---- EXPORT ----
+function exportProtocol(){
+  if(!currentModule){alert('Please select a module first.');return;}
+  const mod=getModState();
+  const meta=mod.meta;
+  const modName=currentModule;
+  const inspector=document.getElementById('inspector-input').value||meta.inspector||'—';
+  const pm=document.getElementById('pm-input').value||meta.pm||'—';
+  const dateVal=document.getElementById('date-input').value||meta.date;
+  const date=dateVal?new Date(dateVal).toLocaleDateString('en-GB'):new Date().toLocaleDateString('en-GB');
+  const ok=mod.items.filter(i=>i.status==='accepted').length;
+  const rej=mod.items.filter(i=>i.status==='rejected').length;
+  const pend=mod.items.filter(i=>i.status==='pending').length;
+  const overall=rej===0&&pend===0?'ACCEPTED':rej>0?'NOT ACCEPTED':'IN PROGRESS';
+  const oColor=overall==='ACCEPTED'?'#1D9E75':overall==='NOT ACCEPTED'?'#E24B4A':'#EF9F27';
+  let rows='';
+  mod.items.forEach(i=>{
+    const sLbl=i.status==='accepted'?'Quality accepted':i.status==='rejected'?'Rejected':'—';
+    const sColor=i.status==='accepted'?'#1D9E75':i.status==='rejected'?'#E24B4A':'#888';
+    rows+=`<tr><td style="padding:5px 7px;border:0.5px solid #ccc;text-align:center;font-size:11px">${i.id}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;color:#555">${i.section}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px">${i.desc}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px"></td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center;color:#E24B4A">${i.rejectedDate||''}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center;color:#1D9E75">${i.acceptedDate||''}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center"></td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;color:${sColor};text-align:center">${sLbl}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px">${i.notes||''}</td></tr>`;
+  });
+  const withPhotos=mod.items.filter(i=>i.photos.length>0);
+  let photoSec='';
+  if(withPhotos.length>0){
+    photoSec=`<div style="margin-top:48px;page-break-before:always"><h2 style="font-size:15px;font-weight:700;margin-bottom:18px;padding-bottom:8px;border-bottom:2px solid #333">Photo documentation — Appendix</h2>`;
+    withPhotos.forEach(i=>{
+      photoSec+=`<div style="margin-bottom:28px"><p style="font-size:12px;font-weight:700;margin-bottom:4px">No. ${i.id} — ${i.section}</p><p style="font-size:11px;color:#555;margin-bottom:10px">${i.desc}</p><div style="display:flex;flex-wrap:wrap;gap:14px">`;
+      i.photos.forEach((p,idx)=>{photoSec+=`<figure style="margin:0"><img src="${p}" style="width:230px;height:172px;object-fit:cover;border-radius:5px;border:1px solid #ddd;display:block"/><figcaption style="font-size:10px;color:#999;margin-top:3px;text-align:center">Photo ${idx+1}</figcaption></figure>`;});
+      photoSec+='</div></div>';
+    });
+    photoSec+='</div>';
+  }
+  const html=`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>QC-3 — Module ${modName}</title><style>body{font-family:Arial,sans-serif;max-width:980px;margin:0 auto;padding:28px;color:#333}table{border-collapse:collapse;width:100%}th{background:#f0f0f0;font-size:11px;font-weight:700}@media print{body{padding:10px}@page{margin:12mm}}</style></head><body>
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;padding-bottom:12px;border-bottom:2px solid #333">
+<div><div style="font-size:11px;color:#888;margin-bottom:4px">Project: ISL RDK Cabins &nbsp;|&nbsp; Address: Iceland</div><h1 style="font-size:18px;font-weight:700;margin-bottom:6px">MODULE CHECKLIST &nbsp; No. QC-3 &nbsp;|&nbsp; Module: ${modName}</h1><p style="font-size:12px">Date: <strong>${date}</strong></p></div>
+<div style="text-align:right"><div style="font-size:20px;font-weight:700;color:${oColor};border:2px solid ${oColor};padding:6px 18px;border-radius:4px">${overall}</div></div>
+</div>
+<table style="margin-bottom:30px"><thead><tr>
+<th style="padding:7px;border:0.5px solid #ccc;width:28px">No.</th>
+<th style="padding:7px;border:0.5px solid #ccc;width:100px">Section</th>
+<th style="padding:7px;border:0.5px solid #ccc">Works to be tested</th>
+<th style="padding:7px;border:0.5px solid #ccc;width:90px">Name / surname</th>
+<th style="padding:7px;border:0.5px solid #ccc;width:68px">Quality rejected, date</th>
+<th style="padding:7px;border:0.5px solid #ccc;width:68px">Quality accepted, date</th>
+<th style="padding:7px;border:0.5px solid #ccc;width:80px">Signature / stamp</th>
+<th style="padding:7px;border:0.5px solid #ccc;width:75px">Status</th>
+<th style="padding:7px;border:0.5px solid #ccc;width:100px">Notes</th>
+</tr></thead><tbody>${rows}</tbody></table>
+<div style="background:#f9f9f9;border:1px solid #ddd;border-radius:4px;padding:13px 17px;margin-bottom:26px"><p style="font-weight:700;font-size:13px;margin-bottom:8px">Meets quality requirements!</p><p style="font-size:12px;margin-bottom:2px">Quality controller: <strong>${inspector}</strong></p><p style="font-size:11px;color:#777">name, surname, signature / stamp</p></div>
+<div style="border:1px solid #ccc;border-radius:4px;padding:13px 17px;margin-bottom:26px"><p style="font-weight:700;font-size:13px;margin-bottom:10px">MODULE ACCEPTANCE: name, surname, signature / stamp</p><p style="font-size:12px;margin-bottom:4px">1. Project manager: <strong>${pm}</strong></p><p style="font-size:12px;margin-bottom:14px">2. Quality controller: <strong>${inspector}</strong></p>
+<div style="display:flex;gap:14px;align-items:center"><span style="font-weight:700;font-size:12px">CHECK BY THE PROJECT MANAGER:</span><span style="border:1px solid #333;padding:4px 14px;font-size:12px;font-weight:700;color:${overall==='ACCEPTED'?'#1D9E75':'#333'}">${overall==='ACCEPTED'?'☑':'☐'} ACCEPTED</span><span style="border:1px solid #333;padding:4px 14px;font-size:12px;font-weight:700;color:${overall==='NOT ACCEPTED'?'#E24B4A':'#333'}">${overall==='NOT ACCEPTED'?'☑':'☐'} NOT ACCEPTED</span></div>
+<div style="margin-top:18px;border-top:1px solid #999;padding-top:6px;width:200px;font-size:11px;color:#777">Signature:</div></div>
+${photoSec}</body></html>`;
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=`QC3_${modName}_${date.replace(/\//g,'-')}.html`;a.click();URL.revokeObjectURL(url);
+}
+
+initDropdown();
+renderOverview();
+</script>
+<script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+<script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+</body>
+</html>
