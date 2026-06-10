@@ -389,20 +389,32 @@ async function handlePhotos(e){
   const files=[...e.target.files];
   const mod=getModState();if(!mod)return;
   const item=mod.items.find(i=>i.id===currentPhotoItemId);if(!item)return;
-  for(const f of files){
-    const dataUrl=await readFile(f);
+  const total=files.length;
+  for(let idx=0;idx<files.length;idx++){
+    const f=files[idx];
+    setStatus(`Reading photo ${idx+1} of ${total}...`);
+    let dataUrl;
+    try{dataUrl=await readFile(f);}catch(err){setStatus(`Error reading photo ${idx+1}, skipping`);continue;}
     item.photos.push(dataUrl);
     item.photoIds.push(null);
     render();
     if(driveConnected&&folderId){
-      setStatus('Uploading photo to Drive...');
-      const fname=`${currentModule}_item${item.id}_${Date.now()}.jpg`;
-      const driveId=await uploadPhotoToDrive(dataUrl,fname);
+      setStatus(`Uploading photo ${idx+1} of ${total} to Drive...`);
+      let retries=3;
+      let driveId=null;
+      while(retries>0&&!driveId){
+        try{
+          const fname=`${currentModule}_item${item.id}_${Date.now()}.jpg`;
+          driveId=await uploadPhotoToDrive(dataUrl,fname);
+        }catch(err){retries--;if(retries>0)await new Promise(r=>setTimeout(r,1500));}
+      }
       item.photoIds[item.photoIds.length-1]=driveId;
-      setStatus('Photo saved ✓');
-      autoSave();
+      setStatus(`Photo ${idx+1} of ${total} saved ✓`);
     }
+    await new Promise(r=>setTimeout(r,300));
   }
+  setStatus(`All ${total} photo${total>1?'s':''} uploaded ✓`);
+  autoSave();
   e.target.value='';
 }
 
@@ -425,6 +437,21 @@ function autoSave(){
 
 // ---- GOOGLE DRIVE ----
 let tokenClient,gapiInited=false,gisInited=false;
+let moduleFolderIds={};
+
+async function ensureModuleFolder(modName){
+  if(moduleFolderIds[modName]) return moduleFolderIds[modName];
+  try{
+    let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${modName}' and '${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id)'}});
+    if(res.result.files&&res.result.files.length>0){
+      moduleFolderIds[modName]=res.result.files[0].id;
+    } else {
+      let cr=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',method:'POST',body:{name:modName,mimeType:'application/vnd.google-apps.folder',parents:[folderId]}});
+      moduleFolderIds[modName]=cr.result.id;
+    }
+    return moduleFolderIds[modName];
+  }catch(e){console.error('Subfolder error:',e);return folderId;}
+}
 
 function gapiLoaded(){
   gapi.load('client',async()=>{
@@ -488,7 +515,8 @@ async function loadAllFromDrive(){
 async function loadModuleFromDrive(modName){
   try{
     const fname=`qc_${modName.replace('-','')}.json`;
-    let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and '${folderId}' in parents and trashed=false`,fields:'files(id,name)'}});
+    const subFolderId=await ensureModuleFolder(modName);
+    let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and ('${subFolderId}' in parents or '${folderId}' in parents) and trashed=false`,fields:'files(id,name)'}});
     let files=res.result.files;
     if(files&&files.length>0){
       driveFileIds[modName]=files[0].id;
@@ -521,7 +549,8 @@ async function saveToDrive(){
     if(driveFileIds[modName]){
       await gapi.client.request({path:`https://www.googleapis.com/upload/drive/v3/files/${driveFileIds[modName]}`,method:'PATCH',params:{uploadType:'media'},headers:{'Content-Type':'application/json'},body});
     } else {
-      const meta={name:fname,parents:[folderId]};
+      const modSubFolder=await ensureModuleFolder(modName);
+      const meta={name:fname,parents:[modSubFolder]};
       const boundary='bound_xyz';
       const mp=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
       let cr=await gapi.client.request({path:'https://www.googleapis.com/upload/drive/v3/files',method:'POST',params:{uploadType:'multipart'},headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body:mp});
@@ -537,7 +566,8 @@ async function uploadPhotoToDrive(dataUrl,filename){
   try{
     const base64=dataUrl.split(',')[1];
     const mime=dataUrl.split(';')[0].split(':')[1];
-    const meta={name:filename,parents:[folderId]};
+    const targetFolder=await ensureModuleFolder(currentModule);
+    const meta={name:filename,parents:[targetFolder]};
     const boundary='photo_bound';
     const body=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: ${mime}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
     let res=await gapi.client.request({path:'https://www.googleapis.com/upload/drive/v3/files',method:'POST',params:{uploadType:'multipart'},headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body});
