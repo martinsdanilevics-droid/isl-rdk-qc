@@ -299,7 +299,7 @@ function render(){
     if(filter==='pending') return i.status==='pending';
     if(filter==='accepted') return i.status==='accepted';
     if(filter==='rejected') return i.status==='rejected';
-    if(filter==='photos') return i.photos.length>0;
+    if(filter==='photos') return (i.photoIds||[]).filter(Boolean).length>0;
     return true;
   });
   filtered.forEach(i=>{if(!sections[i.section])sections[i.section]=[];sections[i.section].push(i);});
@@ -321,10 +321,18 @@ function render(){
           <input class="notes-inp" type="text" placeholder="Notes..." value="${escH(i.notes)}" onchange="setNotes(${i.id},this.value)"/>
           <button class="btn-del" onclick="delItem(${i.id})">&#128465;</button>
         </div>`;
-      if(i.photos.length>0){
+      const previews=i.photoPreviews||[];
+      const driveOnlyIds=(i.photoIds||[]).filter((_,ix)=>!previews[ix]);
+      if(previews.length>0||driveOnlyIds.length>0){
         html+=`<div class="photos-row">`;
-        i.photos.forEach((p,idx)=>{
-          html+=`<div class="thumb"><img src="${p}" onclick="openLightbox('${p}')" alt="Photo ${idx+1}"/><button class="del-p" onclick="delPhoto(${i.id},${idx})">&#10005;</button></div>`;
+        previews.forEach((pv,idx)=>{
+          if(pv.uploading){
+            html+=`<div class="thumb"><div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#888;background:#f5f5f5">Uploading...</div></div>`;
+          } else {
+            const viewUrl=`https://drive.google.com/thumbnail?id=${pv.driveId}&sz=w200`;
+            const fullUrl=`https://drive.google.com/file/d/${pv.driveId}/view`;
+            html+=`<div class="thumb"><img src="${viewUrl}" onclick="window.open('${fullUrl}','_blank')" alt="Photo ${idx+1}" onerror="this.src='${pv.dataUrl}'"/><button class="del-p" onclick="delPhoto(${i.id},${idx})">&#10005;</button></div>`;
+          }
         });
         html+='</div>';
       }
@@ -347,14 +355,14 @@ function setItemStatus(id,s){
 }
 function setNotes(id,v){const mod=getModState();if(!mod)return;const i=mod.items.find(i=>i.id===id);if(i){i.notes=v;autoSave();}}
 function delItem(id){if(!confirm('Delete this item?'))return;const mod=getModState();if(!mod)return;mod.items=mod.items.filter(i=>i.id!==id);render();autoSave();}
-function delPhoto(id,idx){const mod=getModState();if(!mod)return;const i=mod.items.find(i=>i.id===id);if(i){i.photos.splice(idx,1);i.photoIds.splice(idx,1);render();autoSave();}}
+function delPhoto(id,idx){const mod=getModState();if(!mod)return;const i=mod.items.find(i=>i.id===id);if(i){if(i.photoPreviews)i.photoPreviews.splice(idx,1);i.photoIds.splice(idx,1);render();autoSave();}}
 
 function updateStats(){
   const mod=getModState();if(!mod)return;
   const ok=mod.items.filter(i=>i.status==='accepted').length;
   const rej=mod.items.filter(i=>i.status==='rejected').length;
   const pend=mod.items.filter(i=>i.status==='pending').length;
-  const photos=mod.items.reduce((s,i)=>s+i.photos.length,0);
+  const photos=mod.items.reduce((s,i)=>s+(i.photoIds||[]).filter(Boolean).length,0);
   document.getElementById('s-ok').textContent=ok;
   document.getElementById('s-rej').textContent=rej;
   document.getElementById('s-pend').textContent=pend;
@@ -390,30 +398,43 @@ async function handlePhotos(e){
   const mod=getModState();if(!mod)return;
   const item=mod.items.find(i=>i.id===currentPhotoItemId);if(!item)return;
   const total=files.length;
+  if(!driveConnected||!folderId){
+    setStatus('Connect Google Drive first to upload photos.');
+    e.target.value='';return;
+  }
   for(let idx=0;idx<files.length;idx++){
     const f=files[idx];
-    setStatus(`Reading photo ${idx+1} of ${total}...`);
+    setStatus(`Uploading photo ${idx+1} of ${total}...`);
     let dataUrl;
     try{dataUrl=await readFile(f);}catch(err){setStatus(`Error reading photo ${idx+1}, skipping`);continue;}
-    item.photos.push(dataUrl);
+    // show local preview immediately
+    const previewId='preview_'+Date.now()+'_'+idx;
     item.photoIds.push(null);
+    item.photoPreviews=item.photoPreviews||[];
+    item.photoPreviews.push({previewId,dataUrl,uploading:true});
     render();
-    if(driveConnected&&folderId){
-      setStatus(`Uploading photo ${idx+1} of ${total} to Drive...`);
-      let retries=3;
-      let driveId=null;
-      while(retries>0&&!driveId){
-        try{
-          const fname=`${currentModule}_item${item.id}_${Date.now()}.jpg`;
-          driveId=await uploadPhotoToDrive(dataUrl,fname);
-        }catch(err){retries--;if(retries>0)await new Promise(r=>setTimeout(r,1500));}
-      }
-      item.photoIds[item.photoIds.length-1]=driveId;
-      setStatus(`Photo ${idx+1} of ${total} saved ✓`);
+    let retries=3;
+    let driveId=null;
+    while(retries>0&&!driveId){
+      try{
+        const fname=`${currentModule}_item${item.id}_${Date.now()}.jpg`;
+        driveId=await uploadPhotoToDrive(dataUrl,fname);
+      }catch(err){retries--;if(retries>0)await new Promise(r=>setTimeout(r,2000));}
     }
+    if(driveId){
+      item.photoIds[item.photoIds.length-1]=driveId;
+      const pv=item.photoPreviews.find(p=>p.previewId===previewId);
+      if(pv){pv.uploading=false;pv.driveId=driveId;}
+      setStatus(`Photo ${idx+1} of ${total} saved ✓`);
+    } else {
+      item.photoIds.pop();
+      item.photoPreviews=item.photoPreviews.filter(p=>p.previewId!==previewId);
+      setStatus(`Photo ${idx+1} failed to upload — skipped`);
+    }
+    render();
     await new Promise(r=>setTimeout(r,300));
   }
-  setStatus(`All ${total} photo${total>1?'s':''} uploaded ✓`);
+  setStatus(`Done: ${total} photo${total>1?'s':''} uploaded ✓`);
   autoSave();
   e.target.value='';
 }
@@ -441,6 +462,7 @@ let moduleFolderIds={};
 
 async function ensureModuleFolder(modName){
   if(moduleFolderIds[modName]) return moduleFolderIds[modName];
+  if(!folderId) return null;
   try{
     let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${modName}' and '${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id)'}});
     if(res.result.files&&res.result.files.length>0){
@@ -515,8 +537,9 @@ async function loadAllFromDrive(){
 async function loadModuleFromDrive(modName){
   try{
     const fname=`qc_${modName.replace('-','')}.json`;
-    const subFolderId=await ensureModuleFolder(modName);
-    let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and ('${subFolderId}' in parents or '${folderId}' in parents) and trashed=false`,fields:'files(id,name)'}});
+    const subFolderId=moduleFolderIds[modName]||null;
+    const parentQuery=subFolderId?`('${subFolderId}' in parents or '${folderId}' in parents)`:`'${folderId}' in parents`;
+    let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and ${parentQuery} and trashed=false`,fields:'files(id,name)'}});
     let files=res.result.files;
     if(files&&files.length>0){
       driveFileIds[modName]=files[0].id;
@@ -525,7 +548,13 @@ async function loadModuleFromDrive(modName){
       if(saved&&saved.items){
         saved.items.forEach(si=>{
           let cur=modules[modName].items.find(i=>i.id===si.id);
-          if(cur){cur.status=si.status||'pending';cur.notes=si.notes||'';cur.acceptedDate=si.acceptedDate||'';cur.rejectedDate=si.rejectedDate||'';cur.photoIds=si.photoIds||[];cur.photos=si.photos||[];}
+          if(cur){
+            cur.status=si.status||'pending';cur.notes=si.notes||'';
+            cur.acceptedDate=si.acceptedDate||'';cur.rejectedDate=si.rejectedDate||'';
+            const ids=(si.photoIds||[]).filter(Boolean);
+            cur.photoIds=ids;
+            cur.photoPreviews=ids.map(did=>({previewId:did,driveId:did,uploading:false,dataUrl:''}));
+          }
         });
       }
       if(saved&&saved.meta) modules[modName].meta=saved.meta;
@@ -544,12 +573,12 @@ async function saveToDrive(){
   try{
     const modName=currentModule;
     const fname=`qc_${modName.replace('-','')}.json`;
-    const payload={meta:modules[modName].meta,items:modules[modName].items.map(i=>({id:i.id,section:i.section,desc:i.desc,status:i.status,notes:i.notes,acceptedDate:i.acceptedDate,rejectedDate:i.rejectedDate,photoIds:i.photoIds,photos:i.photos}))};
+    const payload={meta:modules[modName].meta,items:modules[modName].items.map(i=>({id:i.id,section:i.section,desc:i.desc,status:i.status,notes:i.notes,acceptedDate:i.acceptedDate,rejectedDate:i.rejectedDate,photoIds:(i.photoIds||[]).filter(Boolean)}))};
     const body=JSON.stringify(payload);
     if(driveFileIds[modName]){
       await gapi.client.request({path:`https://www.googleapis.com/upload/drive/v3/files/${driveFileIds[modName]}`,method:'PATCH',params:{uploadType:'media'},headers:{'Content-Type':'application/json'},body});
     } else {
-      const modSubFolder=await ensureModuleFolder(modName);
+      const modSubFolder=(await ensureModuleFolder(modName))||folderId;
       const meta={name:fname,parents:[modSubFolder]};
       const boundary='bound_xyz';
       const mp=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
@@ -566,7 +595,7 @@ async function uploadPhotoToDrive(dataUrl,filename){
   try{
     const base64=dataUrl.split(',')[1];
     const mime=dataUrl.split(';')[0].split(':')[1];
-    const targetFolder=await ensureModuleFolder(currentModule);
+    const targetFolder=(await ensureModuleFolder(currentModule))||folderId;
     const meta={name:filename,parents:[targetFolder]};
     const boundary='photo_bound';
     const body=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: ${mime}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
@@ -596,13 +625,13 @@ function exportProtocol(){
     const sColor=i.status==='accepted'?'#1D9E75':i.status==='rejected'?'#E24B4A':'#888';
     rows+=`<tr><td style="padding:5px 7px;border:0.5px solid #ccc;text-align:center;font-size:11px">${i.id}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;color:#555">${i.section}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px">${i.desc}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px"></td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center;color:#E24B4A">${i.rejectedDate||''}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center;color:#1D9E75">${i.acceptedDate||''}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center"></td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;color:${sColor};text-align:center">${sLbl}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px">${i.notes||''}</td></tr>`;
   });
-  const withPhotos=mod.items.filter(i=>i.photos.length>0);
+  const withPhotos=mod.items.filter(i=>(i.photoIds||[]).filter(Boolean).length>0);
   let photoSec='';
   if(withPhotos.length>0){
     photoSec=`<div style="margin-top:48px;page-break-before:always"><h2 style="font-size:15px;font-weight:700;margin-bottom:18px;padding-bottom:8px;border-bottom:2px solid #333">Photo documentation — Appendix</h2>`;
     withPhotos.forEach(i=>{
       photoSec+=`<div style="margin-bottom:28px"><p style="font-size:12px;font-weight:700;margin-bottom:4px">No. ${i.id} — ${i.section}</p><p style="font-size:11px;color:#555;margin-bottom:10px">${i.desc}</p><div style="display:flex;flex-wrap:wrap;gap:14px">`;
-      i.photos.forEach((p,idx)=>{photoSec+=`<figure style="margin:0"><img src="${p}" style="width:230px;height:172px;object-fit:cover;border-radius:5px;border:1px solid #ddd;display:block"/><figcaption style="font-size:10px;color:#999;margin-top:3px;text-align:center">Photo ${idx+1}</figcaption></figure>`;});
+      (i.photoIds||[]).filter(Boolean).forEach((did,idx)=>{const thumbUrl=`https://drive.google.com/thumbnail?id=${did}&sz=w400`;const linkUrl=`https://drive.google.com/file/d/${did}/view`;photoSec+=`<figure style="margin:0"><a href="${linkUrl}" target="_blank"><img src="${thumbUrl}" style="width:230px;height:172px;object-fit:cover;border-radius:5px;border:1px solid #ddd;display:block" onerror="this.style.display='none'"/></a><figcaption style="font-size:10px;color:#999;margin-top:3px;text-align:center">Photo ${idx+1} — <a href="${linkUrl}" target="_blank">Open in Drive</a></figcaption></figure>`;});
       photoSec+='</div></div>';
     });
     photoSec+='</div>';
