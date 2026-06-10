@@ -537,9 +537,7 @@ async function loadAllFromDrive(){
 async function loadModuleFromDrive(modName){
   try{
     const fname=`qc_${modName.replace('-','')}.json`;
-    const subFolderId=moduleFolderIds[modName]||null;
-    const parentQuery=subFolderId?`('${subFolderId}' in parents or '${folderId}' in parents)`:`'${folderId}' in parents`;
-    let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and ${parentQuery} and trashed=false`,fields:'files(id,name)'}});
+    let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and trashed=false`,fields:'files(id,name)'}});
     let files=res.result.files;
     if(files&&files.length>0){
       driveFileIds[modName]=files[0].id;
