@@ -165,6 +165,7 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;m
   <img id="lightbox-img" src="" alt="Full size photo"/>
 </div>
 <input type="file" id="file-input" accept="image/*" multiple style="display:none" onchange="handlePhotos(event)"/>
+<input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" onchange="handlePhotos(event)"/>
 
 <script src="https://apis.google.com/js/api.js"></script>
 <script>
@@ -391,7 +392,18 @@ function addItem(){
   render();autoSave();
 }
 
-function openPhotoUpload(id){currentPhotoItemId=id;document.getElementById('file-input').click();}
+function openPhotoUpload(id){
+  currentPhotoItemId=id;
+  if(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){
+    if(confirm('Take photo with camera?\nOK = Camera\nCancel = Choose from gallery')){
+      document.getElementById('camera-input').click();
+    } else {
+      document.getElementById('file-input').click();
+    }
+  } else {
+    document.getElementById('file-input').click();
+  }
+}
 
 async function handlePhotos(e){
   const files=[...e.target.files];
