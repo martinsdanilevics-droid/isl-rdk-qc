@@ -470,59 +470,56 @@ function photoModalChoose(type){
   if(type==='camera') document.getElementById('camera-input').click();
   else document.getElementById('file-input').click();
 }
+// re-open photo modal quickly after camera returns
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&currentPhotoItemId!==null){
+    // page came back from camera — do nothing, upload already running in background
+  }
+});
 
 async function handlePhotos(e){
   const files=[...e.target.files];
   const mod=getModState();if(!mod)return;
   const item=mod.items.find(i=>i.id===currentPhotoItemId);if(!item)return;
-  const total=files.length;
-  if(!driveConnected||!folderId){
-    setStatus('Connect Google Drive first to upload photos.');
-    e.target.value='';return;
-  }
-  for(let idx=0;idx<files.length;idx++){
-    const f=files[idx];
-    setStatus(`Uploading photo ${idx+1} of ${total}...`);
+  if(!driveConnected||!folderId){setStatus('Connect Google Drive first.');e.target.value='';return;}
+  item.photoPreviews=item.photoPreviews||[];
+  // 1. Show all previews immediately — no waiting
+  const newPreviews=[];
+  for(const f of files){
     let dataUrl;
-    try{dataUrl=await readFile(f);}catch(err){setStatus(`Error reading photo ${idx+1}, skipping`);continue;}
-    // show local preview immediately
-    const previewId='preview_'+Date.now()+'_'+idx;
+    try{dataUrl=await readFile(f);}catch(err){continue;}
+    const previewId='p_'+Date.now()+'_'+Math.random().toString(36).slice(2);
     item.photoIds.push(null);
-    item.photoPreviews=item.photoPreviews||[];
-    item.photoPreviews.push({previewId,dataUrl,uploading:true});
-    render();
-    let retries=3;
-    let driveId=null;
+    item.photoPreviews.push({previewId,dataUrl,uploading:true,driveId:null});
+    newPreviews.push({previewId,dataUrl,item});
+  }
+  render();
+  setStatus(`${newPreviews.length} photo${newPreviews.length>1?'s':''} added — uploading in background...`);
+  e.target.value='';
+  // 2. Upload in background — user can keep working
+  for(const {previewId,dataUrl,item} of newPreviews){
+    const pv=item.photoPreviews.find(p=>p.previewId===previewId);
+    if(!pv) continue;
+    let driveId=null,retries=3;
     while(retries>0&&!driveId){
       try{
         const fname=`${currentModule}_item${item.id}_${Date.now()}.jpg`;
         driveId=await uploadPhotoToDrive(dataUrl,fname);
-      }catch(err){retries--;if(retries>0)await new Promise(r=>setTimeout(r,2000));}
+      }catch(err){retries--;if(retries>0)await new Promise(r=>setTimeout(r,1500));}
     }
     if(driveId){
-      item.photoIds[item.photoIds.length-1]=driveId;
-      const pv=item.photoPreviews.find(p=>p.previewId===previewId);
-      if(pv){pv.uploading=false;pv.driveId=driveId;}
-      setStatus(`Photo ${idx+1} of ${total} saved ✓`);
+      pv.uploading=false;pv.driveId=driveId;
+      const ixId=item.photoIds.findIndex((_,i)=>item.photoPreviews[i]&&item.photoPreviews[i].previewId===previewId);
+      if(ixId>=0) item.photoIds[ixId]=driveId;
+      render();
     } else {
-      item.photoIds.pop();
       item.photoPreviews=item.photoPreviews.filter(p=>p.previewId!==previewId);
-      setStatus(`Photo ${idx+1} failed to upload — skipped`);
+      render();
     }
-    render();
-    await new Promise(r=>setTimeout(r,300));
   }
-  setStatus(`Done: ${total} photo${total>1?'s':''} uploaded ✓`);
+  const uploaded=item.photoPreviews.filter(p=>!p.uploading).length;
+  setStatus(`Upload complete — ${uploaded} photo${uploaded>1?'s':''} saved ✓`);
   autoSave();
-  e.target.value='';
-  // ask to take another photo
-  if(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)){
-    setTimeout(()=>{
-      if(confirm('Take another photo for this item?')){
-        openPhotoUpload(currentPhotoItemId);
-      }
-    }, 400);
-  }
 }
 
 function readFile(f){return new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsDataURL(f);});}
