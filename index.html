@@ -390,8 +390,8 @@ function render(){
         <div class="item-actions">
           <button class="btn-accept ${i.status==='accepted'?'active':''}" onclick="setItemStatus(${i.id},'accepted')">&#10003; Quality accepted</button>
           <button class="btn-reject ${i.status==='rejected'?'active':''}" onclick="setItemStatus(${i.id},'rejected')">&#10007; Rejected</button>
-          <button class="btn-photo" onclick="openPhotoUpload(${i.id})">${keepShooting&&currentPhotoItemId===${i.id}?'🔁 Shooting...':'&#128247; Photo'} (${(i.photoIds||[]).filter(Boolean).length+(i.photoPreviews||[]).filter(p=>p.uploading).length})</button>
-          ${keepShooting&&currentPhotoItemId===${i.id}?'<button class="btn-del" onclick="stopShooting()" style="background:#fff3cd;border-color:#ffc107;color:#856404">⏹ Stop</button>':''}
+          <button class="btn-photo" onclick="openPhotoUpload(${i.id})">&#128247; Photo (${(i.photoIds||[]).filter(Boolean).length+(i.photoPreviews||[]).filter(p=>p.uploading).length})</button>
+          ${(keepShooting&&currentPhotoItemId===i.id)?'<button style=\"padding:5px 10px;border:1px solid #ffc107;border-radius:7px;background:#fff3cd;color:#856404;font-size:12px;cursor:pointer\" onclick=\"stopShooting()\">Stop</button>':''}
           <input class="notes-inp" type="text" placeholder="Notes..." value="${escH(i.notes)}" onchange="setNotes(${i.id},this.value)"/>
           <button class="btn-del" onclick="delItem(${i.id})">&#128465;</button>
         </div>`;
