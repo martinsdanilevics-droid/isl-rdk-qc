@@ -525,12 +525,11 @@ function setItemDateFromInput(id,field,isoVal){
 function setItemStatus(id,s){
   const mod=getModState();if(!mod)return;
   const item=mod.items.find(i=>i.id===id);if(!item)return;
-  const now=new Date().toLocaleDateString('en-GB');
   if(item.status===s){item.status='pending';item.acceptedDate='';item.rejectedDate='';}
   else{
     item.status=s;
-    if(s==='accepted'){item.acceptedDate=item.acceptedDate||now;item.rejectedDate='';}
-    else if(s==='rejected'){item.rejectedDate=item.rejectedDate||now;item.acceptedDate='';}
+    if(s==='accepted'){item.rejectedDate='';}
+    else if(s==='rejected'){item.acceptedDate='';}
     else{item.acceptedDate='';item.rejectedDate='';}
   }
   render();renderOverview();autoSave();
