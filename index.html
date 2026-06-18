@@ -466,11 +466,10 @@ function render(){
     if(filter==='na') return i.status==='na';
     return true;
   });
-  filtered.forEach(i=>{if(!sections[i.section])sections[i.section]=[];sections[i.section].push(i);});
+  filtered.sort((a,b)=>a.id-b.id);
   let html='';
-  Object.entries(sections).forEach(([sec,items])=>{
-    html+=`<div class="section-label">${sec}</div>`;
-    items.forEach(i=>{
+  filtered.forEach(i=>{
+    {
       const cls=i.status==='accepted'?'accepted':i.status==='rejected'?'rejected':i.status==='na'?'na':'';
       html+=`<div class="item ${cls}">
         <div class="item-top">
