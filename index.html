@@ -347,6 +347,7 @@ function initDropdown(){
 }
 
 function renderOverview(){
+  try{
   const grid=document.getElementById('overview-grid');
   let html='';
   getProjectCfg().modules.forEach(n=>{
@@ -368,6 +369,7 @@ function renderOverview(){
     </div>`;
   });
   grid.innerHTML=html;
+  }catch(e){console.error('renderOverview error:',e);}
 }
 
 function switchModule(name){
@@ -487,6 +489,7 @@ function delItem(id){if(!confirm('Delete this item?'))return;const mod=getModSta
 function delPhoto(id,idx){const mod=getModState();if(!mod)return;const i=mod.items.find(i=>i.id===id);if(i){if(i.photoPreviews)i.photoPreviews.splice(idx,1);i.photoIds.splice(idx,1);render();autoSave();}}
 
 function updateStats(){
+  try{
   const mod=getModState();if(!mod)return;
   const ok=mod.items.filter(i=>i.status==='accepted').length;
   const rej=mod.items.filter(i=>i.status==='rejected').length;
@@ -501,6 +504,7 @@ function updateStats(){
   const total=mod.items.length,done=ok+rej,pct=total?Math.round(done/total*100):0;
   document.getElementById('prog-fill').style.width=pct+'%';
   document.getElementById('prog-text').textContent=`${done} of ${total} checked (${pct}%) — Module ${currentModule}`;
+  }catch(e){console.error('updateStats error:',e);}
 }
 
 function setFilter(f,btn){
@@ -857,7 +861,7 @@ async function ensureFolderAndLoad(){
       folderId=cr.result.id;
     }
     await loadAllFromDrive();
-  }catch(e){setStatus('Drive error: '+e.message);}
+  }catch(e){setStatus('Drive error: '+e.message);console.error('Drive error full:',e);}
 }
 
 async function loadAllFromDrive(){
@@ -1010,6 +1014,7 @@ initDropdown();
 renderOverview();
 setDriveBtnLoading();
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
 <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
 </body>
