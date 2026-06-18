@@ -469,8 +469,7 @@ function render(){
   filtered.sort((a,b)=>a.id-b.id);
   let html='';
   filtered.forEach(i=>{
-    {
-      const cls=i.status==='accepted'?'accepted':i.status==='rejected'?'rejected':i.status==='na'?'na':'';
+    const cls=i.status==='accepted'?'accepted':i.status==='rejected'?'rejected':i.status==='na'?'na':'';
       html+=`<div class="item ${cls}">
         <div class="item-top">
           <span class="item-num">#${i.id}</span>
@@ -504,7 +503,6 @@ function render(){
         html+='</div>';
       }
       html+='</div>';
-    });
   });
   list.innerHTML=html||'<p style="color:#aaa;padding:20px;text-align:center">No matching items</p>';
   updateStats();
