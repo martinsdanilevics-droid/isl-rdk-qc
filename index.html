@@ -186,8 +186,8 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;m
 <div id="photo-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9998;align-items:flex-end;justify-content:center">
   <div style="background:#fff;border-radius:16px 16px 0 0;padding:24px 20px 32px;width:100%;max-width:480px;text-align:center">
     <p style="font-size:15px;font-weight:700;margin-bottom:20px;color:#333">Add photo</p>
-    <button onclick="startInAppCamera()" style="width:100%;padding:16px;border:1.5px solid #1D9E75;border-radius:12px;background:#1D9E75;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial;margin-bottom:10px">
-      📷 Camera (multiple photos)
+    <button onclick="photoModalChoose('camera',false)" style="width:100%;padding:16px;border:1.5px solid #1D9E75;border-radius:12px;background:#1D9E75;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:Arial;margin-bottom:10px">
+      📷 Take photo (camera)
     </button>
     <button onclick="photoModalChoose('gallery',false)" style="width:100%;padding:14px;border:1.5px solid #1a1a2e;border-radius:12px;background:#1a1a2e;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:Arial;margin-bottom:10px">
       🖼 Choose from gallery
@@ -424,7 +424,7 @@ function render(){
           <button class="btn-reject ${i.status==='rejected'?'active':''}" onclick="setItemStatus(${i.id},'rejected')">&#10007; Rejected</button>
           <button class="btn-na ${i.status==='na'?'active':''}" onclick="setItemStatus(${i.id},'na')">N/A</button>
           <button class="btn-photo" onclick="openPhotoUpload(${i.id})">&#128247; Photo (${(i.photoIds||[]).filter(Boolean).length+(i.photoPreviews||[]).filter(p=>p.uploading).length})</button>
-          ${(keepShooting&&currentPhotoItemId===i.id)?'<button style=\"padding:5px 10px;border:1px solid #ffc107;border-radius:7px;background:#fff3cd;color:#856404;font-size:12px;cursor:pointer\" onclick=\"stopShooting()\">Stop</button>':''}
+          ${currentPhotoItemId===i.id?`<button style="padding:5px 13px;border:1.5px solid #1D9E75;border-radius:7px;background:#e6f7f0;color:#1D9E75;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial" onclick="quickShoot(${i.id})">📷+</button>`:''}
           ${i.status==='accepted'?`<input type="date" style="padding:4px 8px;border:1px solid #1D9E75;border-radius:7px;font-size:11px;color:#1D9E75;background:#f0faf5;font-family:Arial" value="${dateToISO(i.acceptedDate)}" onchange="setItemDateFromInput(${i.id},'acceptedDate',this.value)" title="Accepted date"/>`:'' }
           ${i.status==='rejected'?`<input type="date" style="padding:4px 8px;border:1px solid #E24B4A;border-radius:7px;font-size:11px;color:#E24B4A;background:#fef0f0;font-family:Arial" value="${dateToISO(i.rejectedDate)}" onchange="setItemDateFromInput(${i.id},'rejectedDate',this.value)" title="Rejected date"/>`:'' }
           <input class="notes-inp" type="text" placeholder="Notes..." value="${escH(i.notes)}" onchange="setNotes(${i.id},this.value)"/>
@@ -545,12 +545,19 @@ function startInAppCamera(){
   document.getElementById('photo-modal').style.display='none';
   openInAppCamera(currentPhotoItemId);
 }
+function quickShoot(id){
+  currentPhotoItemId=id;
+  document.getElementById('camera-input').click();
+}
 let keepShooting=false;
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'&&keepShooting&&currentPhotoItemId!==null){
+  if(document.visibilityState==='visible'&&currentPhotoItemId!==null){
+    // re-show photo modal immediately after returning from native camera
     setTimeout(()=>{
-      document.getElementById('camera-input').click();
-    },600);
+      if(currentPhotoItemId!==null){
+        document.getElementById('photo-modal').style.display='flex';
+      }
+    },300);
   }
 });
 
