@@ -66,6 +66,10 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;m
 .notes-inp{flex:1;min-width:130px;padding:5px 10px;border:1px solid #ddd;border-radius:7px;font-size:12px;font-family:Arial}
 .notes-inp:focus{outline:none;border-color:#1a1a2e}
 .btn-del{padding:4px 9px;border:1px solid #fcc;border-radius:7px;font-size:11px;cursor:pointer;background:#fff8f8;color:#E24B4A;font-family:Arial}
+.btn-na{padding:5px 13px;border:1px solid #ccc;border-radius:7px;font-size:12px;cursor:pointer;background:#fff;color:#888;font-family:Arial}
+.btn-na:hover{background:#f5f5f5}
+.btn-na.active{background:#f0f0f0;border-color:#888;color:#555;font-weight:700}
+.item.na{border-left:4px solid #aaa;opacity:0.7}
 .photos-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .thumb{position:relative;width:68px;height:68px;border-radius:7px;overflow:hidden;border:1px solid #ddd;flex-shrink:0}
 .thumb img{width:100%;height:100%;object-fit:cover;cursor:pointer;display:block}
@@ -138,7 +142,8 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;m
         <div class="stat ok"><div class="val" id="s-ok">0</div><div class="lbl">Accepted</div></div>
         <div class="stat rej"><div class="val" id="s-rej">0</div><div class="lbl">Rejected</div></div>
         <div class="stat pend"><div class="val" id="s-pend">44</div><div class="lbl">Pending</div></div>
-        <div class="stat"><div class="val" id="s-photos">0</div><div class="lbl">Photos</div></div>
+        <div class="stat"><div class="val" id="s-na">0</div><div class="lbl">N/A</div></div>
+    <div class="stat"><div class="val" id="s-photos">0</div><div class="lbl">Photos</div></div>
       </div>
     </div>
 
@@ -148,6 +153,7 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;m
       <button class="filter-btn" onclick="setFilter('accepted',this)">Accepted</button>
       <button class="filter-btn" onclick="setFilter('rejected',this)">Rejected</button>
       <button class="filter-btn" onclick="setFilter('photos',this)">With photos</button>
+  <button class="filter-btn" onclick="setFilter('na',this)">N/A</button>
     </div>
 
     <div id="checklist"></div>
@@ -326,6 +332,7 @@ function renderOverview(){
     const ok=mod.items.filter(i=>i.status==='accepted').length;
     const rej=mod.items.filter(i=>i.status==='rejected').length;
     const pend=mod.items.filter(i=>i.status==='pending').length;
+  const na=mod.items.filter(i=>i.status==='na').length;
     const total=mod.items.length;
     const pct=total?Math.round((ok+rej)/total*100):0;
     const isCurrent=n===currentModule;
@@ -373,6 +380,7 @@ function render(){
     if(filter==='accepted') return i.status==='accepted';
     if(filter==='rejected') return i.status==='rejected';
     if(filter==='photos') return (i.photoIds||[]).filter(Boolean).length>0;
+    if(filter==='na') return i.status==='na';
     return true;
   });
   filtered.forEach(i=>{if(!sections[i.section])sections[i.section]=[];sections[i.section].push(i);});
@@ -380,7 +388,7 @@ function render(){
   Object.entries(sections).forEach(([sec,items])=>{
     html+=`<div class="section-label">${sec}</div>`;
     items.forEach(i=>{
-      const cls=i.status==='accepted'?'accepted':i.status==='rejected'?'rejected':'';
+      const cls=i.status==='accepted'?'accepted':i.status==='rejected'?'rejected':i.status==='na'?'na':'';
       html+=`<div class="item ${cls}">
         <div class="item-top">
           <span class="item-num">#${i.id}</span>
@@ -390,8 +398,11 @@ function render(){
         <div class="item-actions">
           <button class="btn-accept ${i.status==='accepted'?'active':''}" onclick="setItemStatus(${i.id},'accepted')">&#10003; Quality accepted</button>
           <button class="btn-reject ${i.status==='rejected'?'active':''}" onclick="setItemStatus(${i.id},'rejected')">&#10007; Rejected</button>
+          <button class="btn-na ${i.status==='na'?'active':''}" onclick="setItemStatus(${i.id},'na')">N/A</button>
           <button class="btn-photo" onclick="openPhotoUpload(${i.id})">&#128247; Photo (${(i.photoIds||[]).filter(Boolean).length+(i.photoPreviews||[]).filter(p=>p.uploading).length})</button>
           ${(keepShooting&&currentPhotoItemId===i.id)?'<button style=\"padding:5px 10px;border:1px solid #ffc107;border-radius:7px;background:#fff3cd;color:#856404;font-size:12px;cursor:pointer\" onclick=\"stopShooting()\">Stop</button>':''}
+          ${i.status==='accepted'?`<input type="date" style="padding:4px 8px;border:1px solid #1D9E75;border-radius:7px;font-size:11px;color:#1D9E75;background:#f0faf5;font-family:Arial" value="${dateToISO(i.acceptedDate)}" onchange="setItemDateFromInput(${i.id},'acceptedDate',this.value)" title="Accepted date"/>`:'' }
+          ${i.status==='rejected'?`<input type="date" style="padding:4px 8px;border:1px solid #E24B4A;border-radius:7px;font-size:11px;color:#E24B4A;background:#fef0f0;font-family:Arial" value="${dateToISO(i.rejectedDate)}" onchange="setItemDateFromInput(${i.id},'rejectedDate',this.value)" title="Rejected date"/>`:'' }
           <input class="notes-inp" type="text" placeholder="Notes..." value="${escH(i.notes)}" onchange="setNotes(${i.id},this.value)"/>
           <button class="btn-del" onclick="delItem(${i.id})">&#128465;</button>
         </div>`;
@@ -418,14 +429,36 @@ function render(){
 }
 
 function escH(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function dateToISO(d){
+  if(!d) return '';
+  const parts=d.split('/');
+  if(parts.length===3) return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+  return '';
+}
+function setItemDateFromInput(id,field,isoVal){
+  if(!isoVal) return;
+  const parts=isoVal.split('-');
+  const formatted=`${parts[2]}/${parts[1]}/${parts[0]}`;
+  setItemDate(id,field,formatted);
+}
 
 function setItemStatus(id,s){
   const mod=getModState();if(!mod)return;
   const item=mod.items.find(i=>i.id===id);if(!item)return;
   const now=new Date().toLocaleDateString('en-GB');
   if(item.status===s){item.status='pending';item.acceptedDate='';item.rejectedDate='';}
-  else{item.status=s;item.acceptedDate=s==='accepted'?now:'';item.rejectedDate=s==='rejected'?now:'';}
+  else{
+    item.status=s;
+    if(s==='accepted'){item.acceptedDate=item.acceptedDate||now;item.rejectedDate='';}
+    else if(s==='rejected'){item.rejectedDate=item.rejectedDate||now;item.acceptedDate='';}
+    else{item.acceptedDate='';item.rejectedDate='';}
+  }
   render();renderOverview();autoSave();
+}
+function setItemDate(id,field,val){
+  const mod=getModState();if(!mod)return;
+  const item=mod.items.find(i=>i.id===id);if(!item)return;
+  item[field]=val;autoSave();
 }
 function setNotes(id,v){const mod=getModState();if(!mod)return;const i=mod.items.find(i=>i.id===id);if(i){i.notes=v;autoSave();}}
 function delItem(id){if(!confirm('Delete this item?'))return;const mod=getModState();if(!mod)return;mod.items=mod.items.filter(i=>i.id!==id);render();autoSave();}
@@ -440,6 +473,7 @@ function updateStats(){
   document.getElementById('s-ok').textContent=ok;
   document.getElementById('s-rej').textContent=rej;
   document.getElementById('s-pend').textContent=pend;
+  if(document.getElementById('s-na')) document.getElementById('s-na').textContent=na;
   document.getElementById('s-photos').textContent=photos;
   const total=mod.items.length,done=ok+rej,pct=total?Math.round(done/total*100):0;
   document.getElementById('prog-fill').style.width=pct+'%';
@@ -488,6 +522,47 @@ document.addEventListener('visibilitychange',()=>{
     },600);
   }
 });
+
+// Read EXIF date from image
+function getExifDate(file){
+  return new Promise(resolve=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const view=new DataView(e.target.result);
+      if(view.getUint16(0,false)!==0xFFD8){resolve(null);return;}
+      let offset=2;
+      while(offset<view.byteLength){
+        if(view.getUint16(offset,false)===0xFFE1){
+          const exifLength=view.getUint16(offset+2,false);
+          const exifData=new DataView(e.target.result,offset+4,exifLength-2);
+          if(String.fromCharCode(...[69,120,105,102])!==
+            String.fromCharCode(exifData.getUint8(0),exifData.getUint8(1),exifData.getUint8(2),exifData.getUint8(3))){resolve(null);return;}
+          const littleEndian=exifData.getUint16(6)===0x4949;
+          const ifdOffset=exifData.getUint32(10,littleEndian)+6;
+          const entries=exifData.getUint16(ifdOffset,littleEndian);
+          for(let i=0;i<entries;i++){
+            const tag=exifData.getUint16(ifdOffset+2+i*12,littleEndian);
+            if(tag===0x9003||tag===0x0132){// DateTimeOriginal or DateTime
+              const valOffset=exifData.getUint32(ifdOffset+2+i*12+8,littleEndian)+6;
+              let str='';
+              for(let j=0;j<19;j++) str+=String.fromCharCode(exifData.getUint8(valOffset+j));
+              // format: "2026:06:12 16:50:00" -> "12/06/2026"
+              const p=str.split(' ')[0].split(':');
+              if(p.length===3) resolve(`${p[2]}/${p[1]}/${p[0]}`);
+              else resolve(null);
+              return;
+            }
+          }
+          resolve(null);return;
+        }
+        offset+=2+view.getUint16(offset+2,false);
+      }
+      resolve(null);
+    };
+    reader.onerror=()=>resolve(null);
+    reader.readAsArrayBuffer(file.slice(0,65536));
+  });
+}
 
 async function handlePhotos(e){
   const files=[...e.target.files];
