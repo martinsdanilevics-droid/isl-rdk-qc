@@ -81,18 +81,18 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;m
 .add-form input:focus,.add-form textarea:focus{outline:none;border-color:#1a1a2e}
 .btn-add{padding:8px 18px;border:1px solid #1a1a2e;border-radius:7px;background:#1a1a2e;color:#fff;font-size:13px;cursor:pointer;font-family:Arial}
 .lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;align-items:center;justify-content:center}
-.cam-modal{display:none;position:fixed;inset:0;background:#000;z-index:9990;flex-direction:column;align-items:center;justify-content:space-between}
+.cam-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:9990;flex-direction:column;align-items:center;justify-content:space-between;height:100%;height:100dvh;}
 .cam-modal.open{display:flex}
-.cam-video{width:100%;max-height:70vh;object-fit:cover;background:#111}
-.cam-bottom{width:100%;padding:16px 20px;background:#111;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.cam-video{width:100%;flex:1;min-height:0;object-fit:cover;background:#111}
+.cam-bottom{width:100%;padding:16px 20px;padding-bottom:calc(16px + env(safe-area-inset-bottom, 0px));background:#111;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
 .cam-shoot{width:72px;height:72px;border-radius:50%;border:4px solid #fff;background:#fff;cursor:pointer;flex-shrink:0;font-size:28px;display:flex;align-items:center;justify-content:center}
 .cam-shoot:active{background:#ddd}
 .cam-count{color:#fff;font-size:13px;text-align:center;min-width:60px}
 .cam-done{padding:12px 20px;border:2px solid #1D9E75;border-radius:10px;background:#1D9E75;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:Arial}
 .cam-close{padding:12px 20px;border:2px solid #aaa;border-radius:10px;background:transparent;color:#fff;font-size:14px;cursor:pointer;font-family:Arial}
-.cam-top{width:100%;padding:12px 16px;background:#111;display:flex;align-items:center;justify-content:space-between}
+.cam-top{width:100%;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top, 0px));background:#111;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .cam-title{color:#fff;font-size:14px;font-weight:700}
-.cam-previews{display:flex;gap:6px;overflow-x:auto;padding:8px 16px;background:#222;width:100%;min-height:72px;align-items:center}
+.cam-previews{display:flex;gap:6px;overflow-x:auto;padding:8px 16px;background:#222;width:100%;height:80px;min-height:80px;max-height:80px;align-items:center;flex-shrink:0}
 .cam-thumb{width:60px;height:60px;border-radius:6px;object-fit:cover;flex-shrink:0;border:2px solid #555}
 .lightbox.open{display:flex}
 .lightbox img{max-width:92%;max-height:92%;border-radius:8px}
