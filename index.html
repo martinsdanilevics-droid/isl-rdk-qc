@@ -221,18 +221,74 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;m
 const CLIENT_ID='433432963029-da3nhrredpd9t0dk6b8bb1juh7n156av.apps.googleusercontent.com';
 const SCOPES='https://www.googleapis.com/auth/drive.file';
 const FOLDER_NAME='ISL_RDK_QC';
+const ITEMS_GER_CS=[
+  {id:1,section:"Water supply, HVAC",desc:"Water supply and heating networks have been installed in accordance with the drawings. Pipes are marked, and pipe ends are sealed. (Panel table, 1 station)"},
+  {id:2,section:"Water supply, HVAC",desc:"Sewage pipes have been securely fixed with correct slopes. Pipe ends are properly sealed. Sewage pipe water test have been completed."},
+  {id:3,section:"Electricians",desc:"Installation of electrical insulation corrugated pipes in floor or ceiling panels has been carried out in accordance with the drawings and instructions."},
+  {id:4,section:"Frame, panels",desc:"Floor panel insulation has been installed correctly. Vapour membrane strips have been applied in accordance with the drawings and instructions."},
+  {id:5,section:"Frame, panels",desc:"Panel layers conform to the design drawings. Nailing and fixing of the panels comply with the specified nailing instructions. OSB edges have been treated with waterproofing."},
+  {id:6,section:"Module assembly",desc:"The positions of the walls, floor, and ceiling panels correspond to the design. The relative angles between panels are 90°."},
+  {id:7,section:"Module assembly",desc:"Module airtightness complies with project specifications; vapor membrane has been properly glued. Shafts and wall corners are sealed."},
+  {id:8,section:"Module assembly",desc:"Module panel interconnections have been completed in accordance with the specified installation guidelines."},
+  {id:9,section:"Foreman",desc:"Checklists for all module panels have been received (Form No. QC-1)."},
+  {id:10,section:"Quality controller",desc:"Acceptance of the module frame has been carried out in accordance with the project drawings and instructions (Form No. QC-2)."},
+  {id:11,section:"Electricians",desc:"Electrical wiring installation, incl. boreholes, boxes & sealing confirm to project drawings."},
+  {id:12,section:"Water supply, HVAC",desc:"Water supply and sewerage networks have been installed in accordance with the design drawings. Outlet holes, including pipe ends and connection points, are hermetically sealed. Pipes are properly marked."},
+  {id:13,section:"Water supply, HVAC",desc:"Water and heating collectors have been installed. Collector valve markings are clearly indicated, and heating loop / radiator numbers are duplicated for clarity."},
+  {id:14,section:"Water supply, HVAC",desc:"Pressure tests of the water supply network have been completed prior to wall covering with panel materials (Form No. QC-5)."},
+  {id:15,section:"Water supply, HVAC",desc:"Ventilation network installation for the bathroom exhaust is carried out in accordance with the project documentation. Sealing of all duct joints and wall interfaces has been completed to ensure airtightness."},
+  {id:16,section:"Windows / doors",desc:"Windows in walls have been installed in accordance with the project drawings and installation guidelines. Sealing tapes and thermal insulation are applied properly and meet the required standards."},
+  {id:17,section:"Windows / doors",desc:"Installation of entrance door frames complies with the design drawings and manufacturer's instructions. Insulation has been correctly installed, and the frames are properly protected."},
+  {id:18,section:"Windows / doors",desc:"Internal window sills have been installed. Finishing around windows and doorways is complete."},
+  {id:19,section:"Frame interior finish",desc:"Thermal insulation in the interior walls has been installed correctly, without gaps. Insulation characteristics have been verified. Additional plywood reinforcements have been attached. Dust membrane covers the insulation."},
+  {id:20,section:"Frame interior finish",desc:"The plasterboard layout conforms to the design drawings. Seam widths are less than 2 mm. Screw spacing and depth are in accordance with installation guidelines."},
+  {id:21,section:"Frame interior finish",desc:"The ceiling perimeter and electrical corrugated conduits have been properly sealed."},
+  {id:22,section:"Int. finishing, painting",desc:"Seams in the plasterboard have been primed. Joint tape and metal corner installations have been carried out according to standard installation practices."},
+  {id:23,section:"Frame exterior finish",desc:"External wall thermal insulation has been properly installed with no gaps. Specified insulation properties, such as thermal conductivity (λ) and thickness, have been observed and confirmed."},
+  {id:24,section:"Frame exterior finish",desc:"The cladding of the module's outer frame has been installed in accordance with the design drawings. Nailing spacing has been followed as specified."},
+  {id:25,section:"Electricians",desc:"Distribution box installation is complete. Electrical corrugated conduits have been installed, branch boxes assembled, cables marked, and grounding system properly connected."},
+  {id:26,section:"Water supply, HVAC",desc:"Underfloor heating pipe installation complies with the design documentation. Pressure testing has been successfully carried out, where pipe loops are connected to the manifold box."},
+  {id:27,section:""Black" floor",desc:"Floor gypsum plates has been laid in both the main room and the bathroom. The layers are bonded together."},
+  {id:28,section:"Water supply, HVAC",desc:"Ventilation network installation for the living room is carried out in accordance with the project documentation. Sealing of all duct joints and wall interfaces has been completed to ensure airtightness."},
+  {id:29,section:"Suspended ceiling",desc:"Installation of suspended ceiling profiles in corresponds to the drawings. Profiles leveled and attached."},
+  {id:30,section:"Suspended ceiling",desc:"Ceiling panel installation is in accordance with the project drawings."},
+  {id:31,section:"Tiling",desc:"Bathroom slopes have been formed in accordance with applicable standards. Waterproofing has been installed following the specified technology."},
+  {id:32,section:"Tiling",desc:"WC tiles have been installed correctly in accordance with the tile layouts and specified technology. Grouting and silicone sealing have been completed."},
+  {id:33,section:"Frame exterior finish",desc:"The insulation between modules has been installed in accordance with the design drawings."},
+  {id:34,section:"Frame exterior finish",desc:"The diffusion membrane has been installed on the exterior walls. Joints are properly aligned, and joint tape has been applied."},
+  {id:35,section:"Exterior finish",desc:"The external window and door sills have been installed in accordance with the design drawings. Fasteners have been applied as per the manufacturer's instructions."},
+  {id:36,section:"Exterior finish",desc:"Facade lathing has been installed in accordance with the design drawings."},
+  {id:37,section:"Int. finishing, painting",desc:"The painted wall finish has been completed. No visible defects were observed at the time of inspection."},
+  {id:38,section:"Int. finishing, painting",desc:"The painted ceiling finish has been completed. No visible defects were observed at the time of inspection."},
+  {id:39,section:"Furniture, floor finish",desc:"The substrate for the flooring has been prepared. Flooring has been installed and adhered according to the manufacturer's guidelines and layout specifications. No visible defects were observed."},
+  {id:40,section:"Furniture",desc:"Furniture assembly has been completed according to the project specifications. Cabinets are securely fixed, fittings are functional, and adjustments have been performed."},
+  {id:41,section:"Finishing, furniture",desc:"Assembly of interior doors has been completed. Door hardware conforms to the design specifications."},
+  {id:42,section:"Finishing, furniture",desc:"Skirting boards and door moldings have been installed in accordance with the specified installation procedures. Joints have been properly executed."},
+  {id:43,section:"Bathroom finishing",desc:"Installation of bathroom furniture and equipment has been completed as per the project specifications and manufacturer's guidelines."},
+  {id:44,section:"Bathroom finishing",desc:"Glass partitions for the bathroom shower have been installed in accordance with the design drawings and manufacturer's specifications. All fittings are functioning correctly."},
+  {id:45,section:"Temporary roof",desc:"Installation of temporary roofing material has been completed."},
+  {id:46,section:"Water supply, HVAC",desc:"Additional measurements of the water supply system were performed with water mixers and shower equipment connected. No leaks were detected or required repair (see Form QC-5)."},
+  {id:47,section:"Electricians",desc:"Installation of sockets, lighting fixtures, and switches has been completed. All electrical equipment has been installed in accordance with specified technical requirements. The distribution box has been connected."},
+  {id:48,section:"Electricians",desc:"The operation of lighting, sockets, and switches has been tested and confirmed to be in full compliance with the project specifications."},
+  {id:49,section:"Electricians, foreman",desc:"Electrical measurements have been performed. No deviations from the standards were recorded (refer to Forms QC-6 and QC-7)."},
+  {id:50,section:"Module packaging",desc:"The module has been cleaned. Equipment, furniture, and accompanying materials have been secured. An inventory check of installed materials has been completed."},
+  {id:51,section:"Module packaging",desc:"Protective frame has been installed. The module has been packed in accordance with the instructions, and the labeling is correct."}
+];
+
 const PROJECTS={
   'ISL_RDK':{
     label:'ISL RDK Cabins',
     folder:'ISL_RDK_QC',
-    modules:['L-1','L-2','L-3','L-4','L-5','L-6','L-7','L-8','L-9','L-10','L-11','L-12','L-13','L-14','L-15']
+    modules:['L-1','L-2','L-3','L-4','L-5','L-6','L-7','L-8','L-9','L-10','L-11','L-12','L-13','L-14','L-15'],
+    itemsTemplate: null // uses ITEMS_TEMPLATE
   },
   'GER_CS':{
     label:'GER CS Chimney Street',
     folder:'GER_CS_QC',
     modules:['CS 0-1','CS 0-2','CS 0-3','CS 0-4','CS 0-5','CS 0-6','CS 0-7','CS 0-8',
              'CS 1-1','CS 1-2','CS 1-3','CS 1-4','CS 1-5','CS 1-6','CS 1-7','CS 1-8',
-             'CS 2-1','CS 2-2','CS 2-3','CS 2-4','CS 2-5','CS 2-6','CS 2-7','CS 2-8']
+             'CS 2-1','CS 2-2','CS 2-3','CS 2-4','CS 2-5','CS 2-6','CS 2-7','CS 2-8'],
+    itemsTemplate: ITEMS_GER_CS
   }
 };
 let currentProject='ISL_RDK';
@@ -286,11 +342,14 @@ const ITEMS_TEMPLATE=[
   {id:44,section:"Module packaging",desc:"Protective frame has been installed. The module has been packed in accordance with the instructions, and the labeling is correct."}
 ];
 
-function freshItems(){return ITEMS_TEMPLATE.map(i=>({...i,status:'pending',notes:'',acceptedDate:'',rejectedDate:'',photos:[],photoIds:[]}));}
+function freshItems(projKey){
+  const tmpl=(projKey&&PROJECTS[projKey]&&PROJECTS[projKey].itemsTemplate)||ITEMS_TEMPLATE;
+  return tmpl.map(i=>({...i,status:'pending',notes:'',acceptedDate:'',rejectedDate:'',photos:[],photoIds:[]}));
+}
 
 // modules[modName] = { meta:{inspector,pm,date}, items:[...] }
 let modules={};
-MODULE_NAMES.forEach(n=>{modules[n]={meta:{inspector:'',pm:'',date:''},items:freshItems()};});
+MODULE_NAMES.forEach(n=>{modules[n]={meta:{inspector:'',pm:'',date:''},items:freshItems(currentProject)};});
 
 let currentModule=null;
 let filter='all';
@@ -318,7 +377,7 @@ function switchProject(projKey){
   });
   // init modules state for this project if not yet done
   PROJECTS[projKey].modules.forEach(n=>{
-    if(!modules[n]) modules[n]={meta:{inspector:'',pm:'',date:''},items:freshItems()};
+    if(!modules[n]) modules[n]={meta:{inspector:'',pm:'',date:''},items:freshItems(currentProject)};
   });
   // update folder and reload from drive
   if(driveConnected){
@@ -341,7 +400,7 @@ function initDropdown(){
   // init all module states
   Object.values(PROJECTS).forEach(proj=>{
     proj.modules.forEach(n=>{
-      if(!modules[n]) modules[n]={meta:{inspector:'',pm:'',date:''},items:freshItems()};
+      if(!modules[n]) modules[n]={meta:{inspector:'',pm:'',date:''},items:freshItems(currentProject)};
     });
   });
 }
@@ -899,6 +958,11 @@ async function loadModuleFromDrive(modName){
             const ids=(si.photoIds||[]).filter(Boolean);
             cur.photoIds=ids;
             cur.photoPreviews=ids.map(did=>({previewId:did,driveId:did,uploading:false,dataUrl:''}));
+          } else {
+            // new item added to template after module was created - add it
+            const tmpl=(PROJECTS[currentProject]&&PROJECTS[currentProject].itemsTemplate)||ITEMS_TEMPLATE;
+            const newItem=tmpl.find(t=>t.id===si.id);
+            if(!newItem) modules[modName].items.push({...si,status:si.status||'pending',photos:[],photoIds:(si.photoIds||[]).filter(Boolean),photoPreviews:(si.photoIds||[]).filter(Boolean).map(did=>({previewId:did,driveId:did,uploading:false,dataUrl:''}))});
           }
         });
       }
