@@ -779,6 +779,38 @@ function maybeEnableDrive(){
     if(saved){gapi.client.setToken(JSON.parse(saved));driveConnected=true;updateDriveUI(true);ensureFolderAndLoad();}
   }
 }
+
+function silentRefreshToken(){
+  if(!tokenClient||!driveConnected) return;
+  tokenClient.callback=async(resp)=>{
+    if(resp.error){
+      // silent refresh failed, show reconnect button
+      driveConnected=false;
+      updateDriveUI(false);
+      setStatus('Drive disconnected — please reconnect');
+      return;
+    }
+    localStorage.setItem('qc_drive_token',JSON.stringify(gapi.client.getToken()));
+    driveConnected=true;
+    setStatus('Drive token refreshed ✓');
+  };
+  tokenClient.requestAccessToken({prompt:''});// prompt:'' = silent, no popup
+}
+
+// Auto refresh token every 45 minutes
+setInterval(()=>{
+  if(driveConnected) silentRefreshToken();
+}, 45*60*1000);
+
+// Also refresh when page becomes visible again after being hidden
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&driveConnected){
+    const token=gapi.client.getToken();
+    if(token&&token.expires_in&&token.expires_in<300){
+      silentRefreshToken();
+    }
+  }
+});
 function handleDriveAuth(){
   if(!tokenClient){
     setStatus('Google auth loading, please wait...');
