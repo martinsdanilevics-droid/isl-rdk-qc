@@ -923,9 +923,20 @@ function exportProtocol(){
   const oColor=overall==='ACCEPTED'?'#1D9E75':overall==='NOT ACCEPTED'?'#E24B4A':'#EF9F27';
   let rows='';
   mod.items.forEach(i=>{
-    const sLbl=i.status==='accepted'?'Quality accepted':i.status==='rejected'?'Rejected':'—';
-    const sColor=i.status==='accepted'?'#1D9E75':i.status==='rejected'?'#E24B4A':'#888';
-    rows+=`<tr><td style="padding:5px 7px;border:0.5px solid #ccc;text-align:center;font-size:11px">${i.id}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;color:#555">${i.section}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px">${i.desc}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px"></td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center;color:#E24B4A">${i.rejectedDate||''}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center;color:#1D9E75">${i.acceptedDate||''}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center"></td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;color:${sColor};text-align:center">${sLbl}</td><td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px">${i.notes||''}</td></tr>`;
+    const sLbl=i.status==='accepted'?'Quality accepted':i.status==='rejected'?'Rejected':i.status==='na'?'N/A':'—';
+    const sColor=i.status==='accepted'?'#1D9E75':i.status==='rejected'?'#E24B4A':i.status==='na'?'#888':'#ccc';
+    const rejCell=i.status==='accepted'?'—':i.status==='rejected'?(i.rejectedDate||''):'';
+    const accCell=i.status==='accepted'?(i.acceptedDate||''):'';
+    const rowBg=i.status==='na'?'background:#f9f9f9;':i.status==='accepted'?'background:#f0fff8;':'';
+    rows+=`<tr style="${rowBg}">
+      <td style="padding:5px 7px;border:0.5px solid #ccc;text-align:center;font-size:11px">${i.id}</td>
+      <td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;color:#555">${i.section}</td>
+      <td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px">${i.desc}</td>
+      <td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center;color:#E24B4A">${rejCell}</td>
+      <td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center;color:#1D9E75;font-weight:${accCell?'700':'400'}">${accCell}</td>
+      <td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;color:${sColor};text-align:center;font-weight:700">${sLbl}</td>
+      <td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px">${i.notes||''}</td>
+    </tr>`;
   });
   const withPhotos=mod.items.filter(i=>(i.photoIds||[]).filter(Boolean).length>0);
   let photoSec='';
@@ -947,9 +958,9 @@ function exportProtocol(){
 <th style="padding:7px;border:0.5px solid #ccc;width:28px">No.</th>
 <th style="padding:7px;border:0.5px solid #ccc;width:100px">Section</th>
 <th style="padding:7px;border:0.5px solid #ccc">Works to be tested</th>
-<th style="padding:7px;border:0.5px solid #ccc;width:80px">Quality rejected, date</th>
-<th style="padding:7px;border:0.5px solid #ccc;width:80px">Quality accepted, date</th>
-<th style="padding:7px;border:0.5px solid #ccc;width:80px">Status</th>
+<th style="padding:7px;border:0.5px solid #ccc;width:85px">Quality rejected, date</th>
+<th style="padding:7px;border:0.5px solid #ccc;width:85px">Quality accepted, date</th>
+<th style="padding:7px;border:0.5px solid #ccc;width:90px">Status</th>
 <th style="padding:7px;border:0.5px solid #ccc;">Notes</th>
 </tr></thead><tbody>${rows}</tbody></table>
 <div style="background:#f9f9f9;border:1px solid #ddd;border-radius:4px;padding:13px 17px;margin-bottom:26px"><p style="font-weight:700;font-size:13px;margin-bottom:8px">Meets quality requirements!</p><p style="font-size:12px;margin-bottom:2px">Quality controller: <strong>${inspector}</strong></p><p style="font-size:11px;color:#777">name, surname, signature / stamp</p></div>
