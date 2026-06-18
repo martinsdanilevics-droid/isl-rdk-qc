@@ -967,6 +967,15 @@ async function loadModuleFromDrive(modName){
         });
       }
       if(saved&&saved.meta) modules[modName].meta=saved.meta;
+      // Add any new template items that don't exist in saved data yet
+      const tmpl=(PROJECTS[currentProject]&&PROJECTS[currentProject].itemsTemplate)||ITEMS_TEMPLATE;
+      tmpl.forEach(ti=>{
+        if(!modules[modName].items.find(i=>i.id===ti.id)){
+          modules[modName].items.push({...ti,status:'pending',notes:'',acceptedDate:'',rejectedDate:'',photos:[],photoIds:[],photoPreviews:[]});
+        }
+      });
+      // Sort by id
+      modules[modName].items.sort((a,b)=>a.id-b.id);
     }
   }catch(e){console.warn('Load error for '+modName,e);}
 }
