@@ -354,7 +354,7 @@ function renderOverview(){
     const ok=mod.items.filter(i=>i.status==='accepted').length;
     const rej=mod.items.filter(i=>i.status==='rejected').length;
     const pend=mod.items.filter(i=>i.status==='pending').length;
-  const naCount=mod.items.filter(i=>i.status==='na').length;
+    const naCount=mod.items.filter(i=>i.status==='na').length;
     const total=mod.items.length;
     const pct=total?Math.round((ok+rej)/total*100):0;
     const isCurrent=n===currentModule;
@@ -491,6 +491,7 @@ function updateStats(){
   const ok=mod.items.filter(i=>i.status==='accepted').length;
   const rej=mod.items.filter(i=>i.status==='rejected').length;
   const pend=mod.items.filter(i=>i.status==='pending').length;
+  const naCount=mod.items.filter(i=>i.status==='na').length;
   const photos=mod.items.reduce((s,i)=>s+(i.photoIds||[]).filter(Boolean).length,0);
   document.getElementById('s-ok').textContent=ok;
   document.getElementById('s-rej').textContent=rej;
