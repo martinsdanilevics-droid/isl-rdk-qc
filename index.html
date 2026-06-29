@@ -131,7 +131,6 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;m
     <button class="drive-btn" id="drive-btn" onclick="handleDriveAuth()">&#9679; Connect Google Drive</button>
     <button class="btn-save" onclick="saveToDrive()">&#8679; Save</button>
     <button class="btn-export" onclick="exportProtocol()">&#8681; Export Protocol</button>
-    <button class="btn-export" style="background:#EF9F27;border-color:#EF9F27" onclick="resetModule()">&#9851; Fix Mismatched Items</button>
   </div>
 </div>
 
@@ -474,7 +473,7 @@ function render(){
       html+=`<div class="item ${cls}">
         <div class="item-top">
           <span class="item-num">#${i.id}</span>
-          <span class="item-sec-badge">${i.section}</span>
+          <span class="item-sec-badge" style="background:${sectionColor(i.section).bg};color:${sectionColor(i.section).fg}">${i.section}</span>
           <span class="item-desc">${i.desc}</span>
         </div>
         <div class="item-actions">
@@ -509,6 +508,32 @@ function render(){
   updateStats();
 }
 
+function sectionColor(section){
+  const map={
+    'Water supply, HVAC':{bg:'#FFE066',fg:'#5c4a00'},
+    'Electricians':{bg:'#5B8DEF',fg:'#fff'},
+    'Electricians, foreman':{bg:'#5B8DEF',fg:'#fff'},
+    'Frame, panels':{bg:'#F4A14D',fg:'#5c3000'},
+    'Module assembly':{bg:'#F4A14D',fg:'#5c3000'},
+    'Foreman':{bg:'#E2725B',fg:'#fff'},
+    'Quality controller':{bg:'#E2725B',fg:'#fff'},
+    'Windows / doors':{bg:'#A9C9E8',fg:'#0d2c4d'},
+    'Frame interior finish':{bg:'#F4A14D',fg:'#5c3000'},
+    'Int. finishing, painting':{bg:'#EC4899',fg:'#fff'},
+    'Frame exterior finish':{bg:'#7BC67E',fg:'#0d3a12'},
+    'Black floor':{bg:'#F4A14D',fg:'#5c3000'},
+    'Suspended ceiling':{bg:'#5CC8E0',fg:'#06343d'},
+    'Tiling':{bg:'#A9C9E8',fg:'#0d2c4d'},
+    'Exterior finish':{bg:'#7BC67E',fg:'#0d3a12'},
+    'Furniture, floor finish':{bg:'#C9A6E8',fg:'#3a0d4d'},
+    'Furniture':{bg:'#C9A6E8',fg:'#3a0d4d'},
+    'Finishing, furniture':{bg:'#C9A6E8',fg:'#3a0d4d'},
+    'Bathroom finishing':{bg:'#86D9C9',fg:'#0a3a30'},
+    'Temporary roof':{bg:'#D9B38C',fg:'#3a230a'},
+    'Module packaging':{bg:'#B5B5B5',fg:'#1a1a1a'}
+  };
+  return map[section]||{bg:'#f0f0f0',fg:'#666'};
+}
 function escH(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 function dateToISO(d){
   if(!d) return '';
