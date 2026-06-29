@@ -131,7 +131,7 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;m
     <button class="drive-btn" id="drive-btn" onclick="handleDriveAuth()">&#9679; Connect Google Drive</button>
     <button class="btn-save" onclick="saveToDrive()">&#8679; Save</button>
     <button class="btn-export" onclick="exportProtocol()">&#8681; Export Protocol</button>
-    <button class="btn-export" style="background:#E24B4A;border-color:#E24B4A" onclick="resetModule()">&#9851; Reset Module</button>
+    <button class="btn-export" style="background:#EF9F27;border-color:#EF9F27" onclick="resetModule()">&#9851; Fix Mismatched Items</button>
   </div>
 </div>
 
@@ -398,10 +398,10 @@ function initDropdown(){
     o.value=n;o.textContent=n;
     sel.appendChild(o);
   });
-  // init all module states
-  Object.values(PROJECTS).forEach(proj=>{
+  // init all module states — each project's modules must use that project's own template
+  Object.entries(PROJECTS).forEach(([pk,proj])=>{
     proj.modules.forEach(n=>{
-      if(!modules[n]) modules[n]={meta:{inspector:'Mārtiņš Danilevičs',pm:'Eva Litauniece',date:''},items:freshItems(currentProject)};
+      if(!modules[n]) modules[n]={meta:{inspector:'Mārtiņš Danilevičs',pm:'Eva Litauniece',date:''},items:freshItems(pk)};
     });
   });
 }
@@ -1081,24 +1081,58 @@ async function loadModuleFromDrive(modName){
 
 async function resetModule(){
   if(!currentModule){alert('Please select a module first.');return;}
-  if(!confirm(`This will erase all checklist statuses, dates and notes for module ${currentModule} and reload it fresh from the current template (used to fix items that were saved under the old checklist numbering). Photos already uploaded to Drive are NOT deleted. Continue?`)) return;
   const modName=currentModule;
-  setStatus('Resetting module...');
-  try{
-    if(driveConnected){
-      const fname=`qc_${modName.replace('-','')}.json`;
-      let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and trashed=false`,fields:'files(id,name)'}});
-      const files=res.result.files;
-      if(files&&files.length>0){
-        await driveRequest({path:`https://www.googleapis.com/drive/v3/files/${files[0].id}`,method:'DELETE'});
-      }
-      delete driveFileIds[modName];
+  const mod=modules[modName];
+  if(!mod){alert('Module has no data to fix.');return;}
+  const tmpl=(PROJECTS[currentProject]&&PROJECTS[currentProject].itemsTemplate)||ITEMS_TEMPLATE;
+  const tmplById={};
+  tmpl.forEach(t=>tmplById[t.id]=t);
+
+  // Find which items actually need fixing: their saved text no longer matches
+  // the current template (i.e. they were saved under an old/wrong numbering).
+  // Items that already match are left completely untouched — their photos,
+  // statuses, dates and notes are preserved.
+  const mismatched=mod.items.filter(i=>tmplById[i.id]&&tmplById[i.id].desc!==i.desc);
+  const hasDataOnMismatched=mismatched.some(i=>i.status!=='pending'||i.notes||(i.photoIds||[]).filter(Boolean).length>0);
+
+  if(mismatched.length===0){
+    alert('No mismatched items found — this module already matches the current checklist template. Nothing to fix.');
+    return;
+  }
+
+  let warningMsg=`Found ${mismatched.length} item(s) in module ${modName} whose saved text doesn't match the current checklist (old numbering). These will be reset to the correct text with empty status/notes.\n\n`;
+  warningMsg+=mismatched.map(i=>`#${i.id}: "${i.desc.slice(0,60)}..." → will become "${tmplById[i.id].desc.slice(0,60)}..."`).join('\n');
+  if(hasDataOnMismatched){
+    warningMsg+=`\n\n⚠ WARNING: some of these mismatched items have photos, notes, or a status already set. That data was recorded against the WRONG checklist item and cannot be safely carried over — it will be cleared for these specific items only. Any photos already in Drive will remain in the Drive folder but will be unlinked from the checklist.\n\nAll OTHER items in this module (matching text) are completely untouched.`;
+  } else {
+    warningMsg+=`\n\nNone of these mismatched items have any data on them yet (no photos, no status, no notes), so nothing will be lost. All other items in this module are untouched.`;
+  }
+  warningMsg+=`\n\nContinue?`;
+
+  if(!confirm(warningMsg)) return;
+
+  setStatus('Fixing mismatched items...');
+  mismatched.forEach(i=>{
+    const correct=tmplById[i.id];
+    i.section=correct.section;
+    i.desc=correct.desc;
+    i.status='pending';
+    i.notes='';
+    i.acceptedDate='';
+    i.rejectedDate='';
+    i.photoIds=[];
+    i.photoPreviews=[];
+  });
+  // Ensure all template items exist and are sorted correctly
+  tmpl.forEach(ti=>{
+    if(!mod.items.find(i=>i.id===ti.id)){
+      mod.items.push({...ti,status:'pending',notes:'',acceptedDate:'',rejectedDate:'',photos:[],photoIds:[],photoPreviews:[]});
     }
-    modules[modName]={meta:{inspector:'Mārtiņš Danilevičs',pm:'Eva Litauniece',date:''},items:freshItems(currentProject)};
-    switchModule(modName);
-    setStatus('Module reset ✓');
-    autoSave();
-  }catch(e){setStatus('Reset error: '+e.message);}
+  });
+  mod.items.sort((a,b)=>a.id-b.id);
+  render();renderOverview();
+  setStatus(`Fixed ${mismatched.length} mismatched item(s) ✓ — all other data preserved`);
+  autoSave();
 }
 
 async function saveToDrive(){
