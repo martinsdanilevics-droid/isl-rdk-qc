@@ -349,7 +349,7 @@ function freshItems(projKey){
 
 // modules[modName] = { meta:{inspector,pm,date}, items:[...] }
 let modules={};
-MODULE_NAMES.forEach(n=>{modules[n]={meta:{inspector:'Mārtiņš Daņilevičs',pm:'Eva Litauniece',date:''},items:freshItems(currentProject)};});
+MODULE_NAMES.forEach(n=>{modules[n]={meta:{inspector:'Mārtiņš Danilevičs',pm:'Eva Litauniece',date:''},items:freshItems(currentProject)};});
 
 let currentModule=null;
 let filter='all';
@@ -377,7 +377,7 @@ function switchProject(projKey){
   });
   // init modules state for this project if not yet done
   PROJECTS[projKey].modules.forEach(n=>{
-    if(!modules[n]) modules[n]={meta:{inspector:'Mārtiņš Daņilevičs',pm:'Eva Litauniece',date:''},items:freshItems(currentProject)};
+    if(!modules[n]) modules[n]={meta:{inspector:'Mārtiņš Danilevičs',pm:'Eva Litauniece',date:''},items:freshItems(currentProject)};
   });
   // update folder and reload from drive
   if(driveConnected){
@@ -400,7 +400,7 @@ function initDropdown(){
   // init all module states
   Object.values(PROJECTS).forEach(proj=>{
     proj.modules.forEach(n=>{
-      if(!modules[n]) modules[n]={meta:{inspector:'Mārtiņš Daņilevičs',pm:'Eva Litauniece',date:''},items:freshItems(currentProject)};
+      if(!modules[n]) modules[n]={meta:{inspector:'Mārtiņš Danilevičs',pm:'Eva Litauniece',date:''},items:freshItems(currentProject)};
     });
   });
 }
