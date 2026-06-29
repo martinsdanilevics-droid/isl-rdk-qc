@@ -349,7 +349,7 @@ function freshItems(projKey){
 
 // modules[modName] = { meta:{inspector,pm,date}, items:[...] }
 let modules={};
-MODULE_NAMES.forEach(n=>{modules[n]={meta:{inspector:'',pm:'',date:''},items:freshItems(currentProject)};});
+MODULE_NAMES.forEach(n=>{modules[n]={meta:{inspector:'Mārtiņš Daņilevičs',pm:'Eva Litauniece',date:''},items:freshItems(currentProject)};});
 
 let currentModule=null;
 let filter='all';
@@ -377,7 +377,7 @@ function switchProject(projKey){
   });
   // init modules state for this project if not yet done
   PROJECTS[projKey].modules.forEach(n=>{
-    if(!modules[n]) modules[n]={meta:{inspector:'',pm:'',date:''},items:freshItems(currentProject)};
+    if(!modules[n]) modules[n]={meta:{inspector:'Mārtiņš Daņilevičs',pm:'Eva Litauniece',date:''},items:freshItems(currentProject)};
   });
   // update folder and reload from drive
   if(driveConnected){
@@ -400,7 +400,7 @@ function initDropdown(){
   // init all module states
   Object.values(PROJECTS).forEach(proj=>{
     proj.modules.forEach(n=>{
-      if(!modules[n]) modules[n]={meta:{inspector:'',pm:'',date:''},items:freshItems(currentProject)};
+      if(!modules[n]) modules[n]={meta:{inspector:'Mārtiņš Daņilevičs',pm:'Eva Litauniece',date:''},items:freshItems(currentProject)};
     });
   });
 }
@@ -525,11 +525,12 @@ function setItemDateFromInput(id,field,isoVal){
 function setItemStatus(id,s){
   const mod=getModState();if(!mod)return;
   const item=mod.items.find(i=>i.id===id);if(!item)return;
+  const today=new Date().toLocaleDateString('en-GB');
   if(item.status===s){item.status='pending';item.acceptedDate='';item.rejectedDate='';}
   else{
     item.status=s;
-    if(s==='accepted'){item.rejectedDate='';}
-    else if(s==='rejected'){item.acceptedDate='';}
+    if(s==='accepted'){item.rejectedDate='';if(!item.acceptedDate)item.acceptedDate=today;}
+    else if(s==='rejected'){item.acceptedDate='';if(!item.rejectedDate)item.rejectedDate=today;}
     else{item.acceptedDate='';item.rejectedDate='';}
   }
   render();renderOverview();autoSave();
@@ -629,7 +630,7 @@ async function openInAppCamera(itemId){
   document.getElementById('cam-item-label').textContent=itemId;
   document.getElementById('cam-modal').classList.add('open');
   try{
-    camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:3840},height:{ideal:2160}},audio:false});
+    camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false});
     document.getElementById('cam-video').srcObject=camStream;
   }catch(err){
     alert('Camera not available: '+err.message);
@@ -640,11 +641,15 @@ async function openInAppCamera(itemId){
 function shootPhoto(){
   const video=document.getElementById('cam-video');
   const canvas=document.getElementById('cam-canvas');
-  canvas.width=video.videoWidth||1280;
-  canvas.height=video.videoHeight||720;
+  // Cap resolution to limit memory per photo (long shoots no longer crash on low-RAM devices)
+  const maxW=1600;
+  const srcW=video.videoWidth||1280,srcH=video.videoHeight||720;
+  const scale=srcW>maxW?maxW/srcW:1;
+  canvas.width=Math.round(srcW*scale);
+  canvas.height=Math.round(srcH*scale);
   const ctx=canvas.getContext('2d');
   ctx.drawImage(video,0,0,canvas.width,canvas.height);
-  const dataUrl=canvas.toDataURL('image/jpeg',0.92);
+  const dataUrl=canvas.toDataURL('image/jpeg',0.8);
   camPhotos.push(dataUrl);
   // update previews
   const prev=document.getElementById('cam-previews');
@@ -657,45 +662,63 @@ function shootPhoto(){
   const btn=document.getElementById('cam-shoot-btn');
   btn.style.background='#1D9E75';
   setTimeout(()=>btn.style.background='#fff',150);
+  // Upload immediately in the background so this photo's memory can be freed
+  // rather than holding many full-size data URLs in camPhotos at once.
+  uploadCamPhotoNow(dataUrl, camPhotos.length-1);
+}
+
+let camUploadQueue=[];
+async function uploadCamPhotoNow(dataUrl, idx){
+  const item=getCamItem();
+  if(!item){return;}
+  item.photoPreviews=item.photoPreviews||[];
+  const previewId='p_'+Date.now()+'_'+idx;
+  item.photoIds.push(null);
+  item.photoPreviews.push({previewId,dataUrl,uploading:true,driveId:null});
+  camUploadQueue.push(previewId);
+  const today=new Date().toLocaleDateString('en-GB');
+  if(!item.acceptedDate) item.acceptedDate=today;
+  if(currentModule===item.__mod) render();
+  if(!driveConnected||!folderId) return;
+  let driveId=null,retries=3;
+  while(retries>0&&!driveId){
+    try{
+      const fname=`${currentModule}_item${item.id}_${Date.now()}.jpg`;
+      driveId=await uploadPhotoToDrive(dataUrl,fname);
+    }catch(err){retries--;if(retries>0)await new Promise(r=>setTimeout(r,1500));}
+  }
+  if(driveId){
+    const pv=item.photoPreviews.find(p=>p.previewId===previewId);
+    if(pv){pv.uploading=false;pv.driveId=driveId;pv.dataUrl='';} // drop dataUrl once uploaded — frees memory
+    const ix=item.photoIds.findIndex((_,i)=>item.photoPreviews[i]&&item.photoPreviews[i].previewId===previewId);
+    if(ix>=0) item.photoIds[ix]=driveId;
+  } else {
+    item.photoPreviews=item.photoPreviews.filter(p=>p.previewId!==previewId);
+    item.photoIds.pop();
+  }
+  camUploadQueue=camUploadQueue.filter(p=>p!==previewId);
+  render();
+  autoSave();
+}
+
+function getCamItem(){
+  const mod=getModState();if(!mod)return null;
+  const item=mod.items.find(i=>i.id===camItemId);
+  if(item) item.__mod=currentModule;
+  return item;
 }
 
 async function doneShooting(){
-  if(camPhotos.length===0){closeCamera();return;}
-  const mod=getModState();if(!mod){closeCamera();return;}
-  const item=mod.items.find(i=>i.id===camItemId);if(!item){closeCamera();return;}
+  const count=camPhotos.length;
   closeCamera();
-  item.photoPreviews=item.photoPreviews||[];
-  const today=new Date().toLocaleDateString('en-GB');
-  if(!item.acceptedDate) item.acceptedDate=today;
-  for(let idx=0;idx<camPhotos.length;idx++){
-    const dataUrl=camPhotos[idx];
-    setStatus(`Uploading photo ${idx+1} of ${camPhotos.length}...`);
-    const previewId='p_'+Date.now()+'_'+idx;
-    item.photoIds.push(null);
-    item.photoPreviews.push({previewId,dataUrl,uploading:true,driveId:null});
-    render();
-    if(driveConnected&&folderId){
-      let driveId=null,retries=3;
-      while(retries>0&&!driveId){
-        try{
-          const fname=`${currentModule}_item${item.id}_${Date.now()}.jpg`;
-          driveId=await uploadPhotoToDrive(dataUrl,fname);
-        }catch(err){retries--;if(retries>0)await new Promise(r=>setTimeout(r,1500));}
-      }
-      if(driveId){
-        const pv=item.photoPreviews.find(p=>p.previewId===previewId);
-        if(pv){pv.uploading=false;pv.driveId=driveId;}
-        const ix=item.photoIds.lastIndexOf(null);
-        if(ix>=0) item.photoIds[ix]=driveId;
-      } else {
-        item.photoPreviews=item.photoPreviews.filter(p=>p.previewId!==previewId);
-        item.photoIds.pop();
-      }
-      render();
-    }
+  if(count===0)return;
+  setStatus('Finishing upload...');
+  let waited=0;
+  while(camUploadQueue.length>0&&waited<30000){
+    await new Promise(r=>setTimeout(r,300));
+    waited+=300;
   }
-  setStatus(`Done: ${camPhotos.length} photo${camPhotos.length>1?'s':''} uploaded ✓`);
-  autoSave();
+  setStatus(`Done: ${count} photo${count>1?'s':''} uploaded ✓`);
   camPhotos=[];
 }
 
@@ -762,6 +785,24 @@ async function handlePhotos(e){
   const item=mod.items.find(i=>i.id===currentPhotoItemId);if(!item)return;
   if(!driveConnected||!folderId){setStatus('Connect Google Drive first.');e.target.value='';return;}
   item.photoPreviews=item.photoPreviews||[];
+  // Detect a date from the first photo (filename > EXIF > file lastModified) and use it for acceptedDate
+  if(!item.acceptedDate&&files.length>0){
+    let detected=null;
+    for(const f of files){
+      const fnDate=extractDateFromFilename(f.name);
+      if(fnDate){detected=fnDate.toLocaleDateString('en-GB');break;}
+    }
+    if(!detected){
+      for(const f of files){
+        const exifStr=await getExifDate(f);
+        if(exifStr){detected=exifStr;break;}
+      }
+    }
+    if(!detected&&files[0].lastModified){
+      detected=new Date(files[0].lastModified).toLocaleDateString('en-GB');
+    }
+    if(detected) item.acceptedDate=detected;
+  }
   // 1. Show all previews immediately — no waiting
   const newPreviews=[];
   for(const f of files){
@@ -787,7 +828,7 @@ async function handlePhotos(e){
       }catch(err){retries--;if(retries>0)await new Promise(r=>setTimeout(r,1500));}
     }
     if(driveId){
-      pv.uploading=false;pv.driveId=driveId;
+      pv.uploading=false;pv.driveId=driveId;pv.dataUrl='';
       const ixId=item.photoIds.findIndex((_,i)=>item.photoPreviews[i]&&item.photoPreviews[i].previewId===previewId);
       if(ixId>=0) item.photoIds[ixId]=driveId;
       render();
@@ -826,11 +867,11 @@ async function ensureModuleFolder(modName){
   if(moduleFolderIds[modName]) return moduleFolderIds[modName];
   if(!folderId) return null;
   try{
-    let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${modName}' and '${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id)'}});
+    let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${modName}' and '${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id)'}});
     if(res.result.files&&res.result.files.length>0){
       moduleFolderIds[modName]=res.result.files[0].id;
     } else {
-      let cr=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',method:'POST',body:{name:modName,mimeType:'application/vnd.google-apps.folder',parents:[folderId]}});
+      let cr=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',method:'POST',body:{name:modName,mimeType:'application/vnd.google-apps.folder',parents:[folderId]}});
       moduleFolderIds[modName]=cr.result.id;
     }
     return moduleFolderIds[modName];
@@ -853,25 +894,67 @@ function gisLoaded(){
 function maybeEnableDrive(){
   if(gapiInited&&gisInited){
     const saved=localStorage.getItem('qc_drive_token');
-    if(saved){gapi.client.setToken(JSON.parse(saved));driveConnected=true;updateDriveUI(true);ensureFolderAndLoad();}
+    if(saved){
+      const tok=JSON.parse(saved);
+      gapi.client.setToken(tok);
+      driveConnected=true;updateDriveUI(true);
+      if(tokenNeedsRefresh()){
+        silentRefreshToken().then(()=>ensureFolderAndLoad());
+      } else {
+        ensureFolderAndLoad();
+      }
+    }
   }
 }
 
 function silentRefreshToken(){
-  if(!tokenClient||!driveConnected) return;
-  tokenClient.callback=async(resp)=>{
-    if(resp.error){
-      // silent refresh failed, show reconnect button
-      driveConnected=false;
-      updateDriveUI(false);
-      setStatus('Drive disconnected — please reconnect');
-      return;
+  if(!tokenClient||!driveConnected) return Promise.resolve(false);
+  return new Promise(resolve=>{
+    tokenClient.callback=async(resp)=>{
+      if(resp.error){
+        // silent refresh failed, show reconnect button
+        driveConnected=false;
+        updateDriveUI(false);
+        setStatus('Drive disconnected — please reconnect');
+        resolve(false);
+        return;
+      }
+      const tok=gapi.client.getToken();
+      tok.acquired_at=Date.now();
+      localStorage.setItem('qc_drive_token',JSON.stringify(tok));
+      driveConnected=true;
+      setStatus('Drive token refreshed ✓');
+      resolve(true);
+    };
+    tokenClient.requestAccessToken({prompt:''});// prompt:'' = silent, no popup
+  });
+}
+
+function tokenNeedsRefresh(){
+  const tok=gapi.client.getToken();
+  if(!tok) return true;
+  const acquiredAt=tok.acquired_at||0;
+  const expiresInMs=(tok.expires_in||3600)*1000;
+  const elapsed=Date.now()-acquiredAt;
+  return elapsed > (expiresInMs - 5*60*1000); // refresh 5 min before real expiry
+}
+
+// Wrap any Drive API call: auto-refresh token first if needed, retry once on 401
+async function driveRequest(opts){
+  if(!driveConnected){throw new Error('Drive not connected');}
+  if(tokenNeedsRefresh()){
+    await silentRefreshToken();
+  }
+  try{
+    return await gapi.client.request(opts);
+  }catch(e){
+    const status=e&&(e.status||(e.result&&e.result.error&&e.result.error.code)||(e.code));
+    if(status===401||status===403){
+      const ok=await silentRefreshToken();
+      if(ok) return await gapi.client.request(opts);
     }
-    localStorage.setItem('qc_drive_token',JSON.stringify(gapi.client.getToken()));
-    driveConnected=true;
-    setStatus('Drive token refreshed ✓');
-  };
-  tokenClient.requestAccessToken({prompt:''});// prompt:'' = silent, no popup
+    throw e;
+  }
 }
 
 // Auto refresh token every 45 minutes
@@ -882,8 +965,7 @@ setInterval(()=>{
 // Also refresh when page becomes visible again after being hidden
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'&&driveConnected){
-    const token=gapi.client.getToken();
-    if(token&&token.expires_in&&token.expires_in<300){
+    if(tokenNeedsRefresh()){
       silentRefreshToken();
     }
   }
@@ -896,7 +978,9 @@ function handleDriveAuth(){
   }
   tokenClient.callback=async(resp)=>{
     if(resp.error)return;
-    localStorage.setItem('qc_drive_token',JSON.stringify(gapi.client.getToken()));
+    const tok=gapi.client.getToken();
+    tok.acquired_at=Date.now();
+    localStorage.setItem('qc_drive_token',JSON.stringify(tok));
     driveConnected=true;updateDriveUI(true);setStatus('Connected to Google Drive');
     await ensureFolderAndLoad();
   };
@@ -923,13 +1007,13 @@ function setDriveBtnLoading(){
 async function ensureFolderAndLoad(){
   try{
     setStatus('Checking Drive folder...');
-    const activeFolderName=getProjectCfg().folder;let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${activeFolderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id,name,webViewLink)'}});
+    const activeFolderName=getProjectCfg().folder;let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${activeFolderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id,name,webViewLink)'}});
     let files=res.result.files;
     if(files&&files.length>0){
       folderId=files[0].id;
       document.getElementById('drive-folder-link').innerHTML=`<a href="${files[0].webViewLink}" target="_blank">Open in Drive</a>`;
     } else {
-      let cr=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',method:'POST',body:{name:activeFolderName,mimeType:'application/vnd.google-apps.folder'}});
+      let cr=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',method:'POST',body:{name:activeFolderName,mimeType:'application/vnd.google-apps.folder'}});
       folderId=cr.result.id;
     }
     await loadAllFromDrive();
@@ -949,11 +1033,11 @@ async function loadAllFromDrive(){
 async function loadModuleFromDrive(modName){
   try{
     const fname=`qc_${modName.replace('-','')}.json`;
-    let res=await gapi.client.request({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and trashed=false`,fields:'files(id,name)'}});
+    let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and trashed=false`,fields:'files(id,name)'}});
     let files=res.result.files;
     if(files&&files.length>0){
       driveFileIds[modName]=files[0].id;
-      let dl=await gapi.client.request({path:`https://www.googleapis.com/drive/v3/files/${files[0].id}`,params:{alt:'media'}});
+      let dl=await driveRequest({path:`https://www.googleapis.com/drive/v3/files/${files[0].id}`,params:{alt:'media'}});
       const saved=dl.result;
       if(saved&&saved.items){
         saved.items.forEach(si=>{
@@ -1000,13 +1084,13 @@ async function saveToDrive(){
     const payload={meta:modules[modName].meta,items:modules[modName].items.map(i=>({id:i.id,section:i.section,desc:i.desc,status:i.status,notes:i.notes,acceptedDate:i.acceptedDate,rejectedDate:i.rejectedDate,photoIds:(i.photoIds||[]).filter(Boolean)}))};
     const body=JSON.stringify(payload);
     if(driveFileIds[modName]){
-      await gapi.client.request({path:`https://www.googleapis.com/upload/drive/v3/files/${driveFileIds[modName]}`,method:'PATCH',params:{uploadType:'media'},headers:{'Content-Type':'application/json'},body});
+      await driveRequest({path:`https://www.googleapis.com/upload/drive/v3/files/${driveFileIds[modName]}`,method:'PATCH',params:{uploadType:'media'},headers:{'Content-Type':'application/json'},body});
     } else {
       const modSubFolder=(await ensureModuleFolder(modName))||folderId;
       const meta={name:fname,parents:[modSubFolder]};
       const boundary='bound_xyz';
       const mp=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
-      let cr=await gapi.client.request({path:'https://www.googleapis.com/upload/drive/v3/files',method:'POST',params:{uploadType:'multipart'},headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body:mp});
+      let cr=await driveRequest({path:'https://www.googleapis.com/upload/drive/v3/files',method:'POST',params:{uploadType:'multipart'},headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body:mp});
       driveFileIds[modName]=cr.result.id;
     }
     setStatus('Saved ✓ '+new Date().toLocaleTimeString());
@@ -1023,7 +1107,7 @@ async function uploadPhotoToDrive(dataUrl,filename){
     const meta={name:filename,parents:[targetFolder]};
     const boundary='photo_bound';
     const body=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: ${mime}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
-    let res=await gapi.client.request({path:'https://www.googleapis.com/upload/drive/v3/files',method:'POST',params:{uploadType:'multipart'},headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body});
+    let res=await driveRequest({path:'https://www.googleapis.com/upload/drive/v3/files',method:'POST',params:{uploadType:'multipart'},headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body});
     return res.result.id;
   }catch(e){console.error('Photo upload error:',e);return null;}
 }
