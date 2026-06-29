@@ -317,7 +317,7 @@ const ITEMS_TEMPLATE=[
   {id:19,section:"Windows / doors",desc:"Internal window sills have been installed. Finishing around windows and doorways is complete."},
   {id:20,section:"Frame interior finish",desc:"Thermal insulation in the interior walls has been installed correctly, without gaps. Insulation characteristics have been verified. Additional plywood reinforcements have been attached. Dust membrane covers the insulation."},
   {id:21,section:"Frame exterior finish",desc:"External wall thermal insulation has been properly installed with no gaps. Specified insulation properties, such as thermal conductivity (λ) and thickness, have been observed and confirmed."},
-  {id:22,section:"Frame exterior finish",desc:"The cladding of the module's outer frame (Swisspearl Windstopper) has been installed in accordance with the design drawings. Nailing spacing has been followed as specified."},
+  {id:22,section:"Frame exterior finish",desc:"The cladding of the module's outer frame has been installed in accordance with the design drawings. Nailing spacing has been followed as specified."},
   {id:23,section:"Electricians",desc:"Distribution box installation is complete. Electrical corrugated conduits have been installed, branch boxes assembled, cables marked, and grounding system properly connected."},
   {id:24,section:"Black floor",desc:"Floor gypsum plates has been laid in both the main room and the bathroom. The layers are bonded together."},
   {id:25,section:"Tiling",desc:"Bathroom slopes have been formed in accordance with applicable standards. Waterproofing has been installed following the specified technology."},
@@ -1136,13 +1136,13 @@ function exportProtocol(){
     const accCell=i.status==='accepted'?(i.acceptedDate||''):'';
     const rowBg=i.status==='na'?'background:#f9f9f9;':i.status==='accepted'?'background:#f0fff8;':'';
     rows+=`<tr style="${rowBg}">
-      <td style="padding:5px 7px;border:0.5px solid #ccc;text-align:center;font-size:11px">${i.id}</td>
-      <td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;color:#555">${i.section}</td>
-      <td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px">${i.desc}</td>
-      <td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center;color:#E24B4A">${rejCell}</td>
-      <td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;text-align:center;color:#1D9E75;font-weight:${accCell?'700':'400'}">${accCell}</td>
-      <td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px;color:${sColor};text-align:center;font-weight:700">${sLbl}</td>
-      <td style="padding:5px 7px;border:0.5px solid #ccc;font-size:11px">${i.notes||''}</td>
+      <td style="padding:2px 6px;border:0.5px solid #ccc;text-align:center;font-size:10px;line-height:1.25">${i.id}</td>
+      <td style="padding:2px 6px;border:0.5px solid #ccc;font-size:10px;line-height:1.25;color:#555">${i.section}</td>
+      <td style="padding:2px 6px;border:0.5px solid #ccc;font-size:10px;line-height:1.25">${i.desc}</td>
+      <td style="padding:2px 6px;border:0.5px solid #ccc;font-size:10px;line-height:1.25;text-align:center;color:#E24B4A">${rejCell}</td>
+      <td style="padding:2px 6px;border:0.5px solid #ccc;font-size:10px;line-height:1.25;text-align:center;color:#1D9E75;font-weight:${accCell?'700':'400'}">${accCell}</td>
+      <td style="padding:2px 6px;border:0.5px solid #ccc;font-size:10px;line-height:1.25;color:${sColor};text-align:center;font-weight:700">${sLbl}</td>
+      <td style="padding:2px 6px;border:0.5px solid #ccc;font-size:10px;line-height:1.25">${i.notes||''}</td>
     </tr>`;
   });
   const withPhotos=mod.items.filter(i=>(i.photoIds||[]).filter(Boolean).length>0);
@@ -1156,7 +1156,7 @@ function exportProtocol(){
     });
     photoSec+='</div>';
   }
-  const html=`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>QC-3 — Module ${modName}</title><style>body{font-family:Arial,sans-serif;max-width:980px;margin:0 auto;padding:28px;color:#333}table{border-collapse:collapse;width:100%}th{background:#f0f0f0;font-size:11px;font-weight:700}@media print{body{padding:10px}@page{margin:15mm 12mm}}</style></head><body>
+  const html=`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>QC-3 — Module ${modName}</title><style>body{font-family:Arial,sans-serif;max-width:980px;margin:0 auto;padding:28px;color:#333}table{border-collapse:collapse;width:100%}th{background:#f0f0f0;font-size:10px;font-weight:700;padding:4px 6px;line-height:1.25;border:0.5px solid #ccc}td,th{vertical-align:top}@media print{body{padding:10px}@page{margin:15mm 12mm}}</style></head><body>
 <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;padding-bottom:12px;border-bottom:2px solid #333">
 <div><div style="font-size:11px;color:#888;margin-bottom:4px">Project: ISL RDK Cabins &nbsp;|&nbsp; Address: Iceland</div><h1 style="font-size:18px;font-weight:700;margin-bottom:6px">MODULE CHECKLIST &nbsp; No. QC-3 &nbsp;|&nbsp; Module: ${modName}</h1><p style="font-size:12px">Date: <strong>${date}</strong></p></div>
 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
@@ -1164,14 +1164,14 @@ function exportProtocol(){
   <div style="font-size:20px;font-weight:700;color:${oColor};border:2px solid ${oColor};padding:6px 18px;border-radius:4px">${overall}</div>
 </div>
 </div>
-<table style="margin-bottom:30px"><thead><tr>
-<th style="padding:7px;border:0.5px solid #ccc;width:28px">No.</th>
-<th style="padding:7px;border:0.5px solid #ccc;width:100px">Section</th>
-<th style="padding:7px;border:0.5px solid #ccc">Works to be tested</th>
-<th style="padding:7px;border:0.5px solid #ccc;width:85px">Quality rejected, date</th>
-<th style="padding:7px;border:0.5px solid #ccc;width:85px">Quality accepted, date</th>
-<th style="padding:7px;border:0.5px solid #ccc;width:90px">Status</th>
-<th style="padding:7px;border:0.5px solid #ccc;">Notes</th>
+<table style="margin-bottom:24px"><thead><tr>
+<th style="width:28px">No.</th>
+<th style="width:100px">Section</th>
+<th>Works to be tested</th>
+<th style="width:85px">Quality rejected, date</th>
+<th style="width:85px">Quality accepted, date</th>
+<th style="width:90px">Status</th>
+<th>Notes</th>
 </tr></thead><tbody>${rows}</tbody></table>
 <div style="background:#f9f9f9;border:1px solid #ddd;border-radius:4px;padding:13px 17px;margin-bottom:26px"><p style="font-weight:700;font-size:13px;margin-bottom:8px">Meets quality requirements!</p><p style="font-size:12px;margin-bottom:2px">Quality controller: <strong>${inspector}</strong></p><p style="font-size:11px;color:#777">name, surname, signature / stamp</p></div>
 <div style="border:1px solid #ccc;border-radius:4px;padding:13px 17px;margin-bottom:26px"><p style="font-weight:700;font-size:13px;margin-bottom:10px">MODULE ACCEPTANCE: name, surname, signature / stamp</p><p style="font-size:12px;margin-bottom:4px">1. Project manager: <strong>${pm}</strong></p><p style="font-size:12px;margin-bottom:14px">2. Quality controller: <strong>${inspector}</strong></p>
