@@ -129,6 +129,7 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;m
   <div class="top-bar-right">
     <span class="save-status" id="save-status"></span>
     <button class="drive-btn" id="drive-btn" onclick="handleDriveAuth()">&#9679; Connect Google Drive</button>
+    <button class="btn-save" onclick="recoverPhotos()" title="Scan Drive folder and restore any missing photo links">&#128247; Recover Photos</button>
     <button class="btn-save" onclick="saveToDrive()">&#8679; Save</button>
     <button class="btn-export" onclick="exportProtocol()">&#8681; Export Protocol</button>
   </div>
@@ -1160,6 +1161,58 @@ async function resetModule(){
   autoSave();
 }
 
+async function recoverPhotos(){
+  if(!currentModule){alert('Please select a module first.');return;}
+  if(!driveConnected||!folderId){alert('Connect Google Drive first.');return;}
+  setStatus('Scanning Drive folder for photos...');
+  try{
+    const modFolderId=await ensureModuleFolder(currentModule);
+    // Fetch all image files in the module subfolder
+    let allFiles=[];
+    let pageToken='';
+    do{
+      const params={
+        q:`'${modFolderId}' in parents and mimeType contains 'image/' and trashed=false`,
+        fields:'nextPageToken,files(id,name)',
+        pageSize:1000
+      };
+      if(pageToken) params.pageToken=pageToken;
+      const res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params});
+      allFiles=allFiles.concat(res.result.files||[]);
+      pageToken=res.result.nextPageToken||'';
+    }while(pageToken);
+
+    if(allFiles.length===0){setStatus('No photos found in Drive folder.');return;}
+
+    const mod=modules[currentModule];
+    let recovered=0;
+    // Group files by item number extracted from filename: "CS 0-6_item12_..." → 12
+    allFiles.forEach(file=>{
+      const m=file.name.match(/_item(\d+)_/);
+      if(!m) return;
+      const itemId=parseInt(m[1]);
+      const item=mod.items.find(i=>i.id===itemId);
+      if(!item) return;
+      item.photoIds=item.photoIds||[];
+      item.photoPreviews=item.photoPreviews||[];
+      // Only add if not already tracked
+      if(!item.photoIds.includes(file.id)){
+        item.photoIds.push(file.id);
+        item.photoPreviews.push({previewId:file.id,driveId:file.id,uploading:false,dataUrl:''});
+        recovered++;
+      }
+    });
+
+    render();renderOverview();
+    if(recovered>0){
+      setStatus(`Recovered ${recovered} missing photo link(s) ✓ — saving...`);
+      await saveToDrive();
+    } else {
+      setStatus('All photos already linked — nothing to recover.');
+    }
+  }catch(e){setStatus('Recover error: '+e.message);console.error(e);}
+}
+
 async function saveToDrive(){
   if(!driveConnected){alert('Please connect Google Drive first.');return;}
   if(!currentModule){alert('Please select a module first.');return;}
@@ -1255,13 +1308,13 @@ function exportProtocol(){
 </div>
 </div>
 <table style="margin-bottom:24px"><thead><tr>
-<th style="width:28px">No.</th>
-<th style="width:100px">Section</th>
+<th style="width:24px">No.</th>
+<th style="width:120px">Section</th>
 <th>Works to be tested</th>
-<th style="width:85px">Quality rejected, date</th>
-<th style="width:85px">Quality accepted, date</th>
-<th style="width:90px">Status</th>
-<th>Notes</th>
+<th style="width:72px">Quality rejected, date</th>
+<th style="width:72px">Quality accepted, date</th>
+<th style="width:80px">Status</th>
+<th style="width:90px">Notes</th>
 </tr></thead><tbody>${rows}</tbody></table>
 <div style="background:#f9f9f9;border:1px solid #ddd;border-radius:4px;padding:13px 17px;margin-bottom:26px"><p style="font-weight:700;font-size:13px;margin-bottom:8px">Meets quality requirements!</p><p style="font-size:12px;margin-bottom:2px">Quality controller: <strong>${inspector}</strong></p><p style="font-size:11px;color:#777">name, surname, signature / stamp</p></div>
 <div style="border:1px solid #ccc;border-radius:4px;padding:13px 17px;margin-bottom:26px"><p style="font-weight:700;font-size:13px;margin-bottom:10px">MODULE ACCEPTANCE: name, surname, signature / stamp</p><p style="font-size:12px;margin-bottom:4px">1. Project manager: <strong>${pm}</strong></p><p style="font-size:12px;margin-bottom:14px">2. Quality controller: <strong>${inspector}</strong></p>
