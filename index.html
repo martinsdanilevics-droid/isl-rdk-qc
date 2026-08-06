@@ -930,7 +930,7 @@ function gisLoaded(){
   if(btn&&!driveConnected){btn.textContent='⬤ Connect Google Drive';btn.disabled=false;}
   maybeEnableDrive();
 }
-function maybeEnableDrive(){
+async function maybeEnableDrive(){
   if(gapiInited&&gisInited){
     const saved=localStorage.getItem('qc_drive_token');
     if(saved){
@@ -944,12 +944,11 @@ function maybeEnableDrive(){
       }
       gapi.client.setToken(tok);
       driveConnected=true;updateDriveUI(true);
-      fetchUserEmail();
+      await fetchUserEmail();
       if(tokenNeedsRefresh()){
-        silentRefreshToken().then(()=>ensureFolderAndLoad());
-      } else {
-        ensureFolderAndLoad();
+        await silentRefreshToken();
       }
+      await ensureFolderAndLoad();
     }
   }
 }
