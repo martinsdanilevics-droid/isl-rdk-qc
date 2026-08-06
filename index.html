@@ -1036,10 +1036,16 @@ function handleDriveAuth(){
 }
 async function fetchUserEmail(){
   try{
-    const res=await gapi.client.request({path:'https://www.googleapis.com/oauth2/v2/userinfo',params:{fields:'email'}});
-    currentUserEmail=(res.result.email||'').toLowerCase();
-    if(isRestricted()) setStatus('Viewer mode — delete disabled');
-  }catch(e){currentUserEmail='';}
+    const tok=gapi.client.getToken();
+    if(!tok||!tok.access_token){return;}
+    const res=await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${tok.access_token}`);
+    const data=await res.json();
+    currentUserEmail=(data.email||'').toLowerCase();
+    if(isRestricted()){
+      setStatus('Viewer mode — delete disabled');
+      render();
+    }
+  }catch(e){currentUserEmail='';console.warn('fetchUserEmail error:',e);}
 }
 
 function updateDriveUI(connected){
