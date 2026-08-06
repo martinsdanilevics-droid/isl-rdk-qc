@@ -1031,17 +1031,33 @@ function setDriveBtnLoading(){
   }
 }
 
+// Fixed Drive folder IDs — all users write to the same shared folders
+// regardless of which Google account they authenticate with.
+const FIXED_FOLDER_IDS={
+  'ISL_RDK':'1KmQqvNYimcA_cE9HcvSPlt2dv8MS7IOH',
+  'GER_CS':'11beoyQcnH2oIL_d8-q_1oo1w6JieQ6xz'
+};
+
 async function ensureFolderAndLoad(){
   try{
     setStatus('Checking Drive folder...');
-    const activeFolderName=getProjectCfg().folder;let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${activeFolderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id,name,webViewLink)'}});
-    let files=res.result.files;
-    if(files&&files.length>0){
-      folderId=files[0].id;
-      document.getElementById('drive-folder-link').innerHTML=`<a href="${files[0].webViewLink}" target="_blank">Open in Drive</a>`;
+    const fixedId=FIXED_FOLDER_IDS[currentProject];
+    if(fixedId){
+      folderId=fixedId;
+      const folderName=getProjectCfg().folder;
+      document.getElementById('drive-folder-link').innerHTML=`<a href="https://drive.google.com/drive/folders/${fixedId}" target="_blank">Open in Drive</a>`;
     } else {
-      let cr=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',method:'POST',body:{name:activeFolderName,mimeType:'application/vnd.google-apps.folder'}});
-      folderId=cr.result.id;
+      // Fallback: search by name if no fixed ID configured
+      const activeFolderName=getProjectCfg().folder;
+      let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${activeFolderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id,name,webViewLink)'}});
+      let files=res.result.files;
+      if(files&&files.length>0){
+        folderId=files[0].id;
+        document.getElementById('drive-folder-link').innerHTML=`<a href="${files[0].webViewLink}" target="_blank">Open in Drive</a>`;
+      } else {
+        let cr=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',method:'POST',body:{name:activeFolderName,mimeType:'application/vnd.google-apps.folder'}});
+        folderId=cr.result.id;
+      }
     }
     await loadAllFromDrive();
   }catch(e){setStatus('Drive error: '+e.message);console.error('Drive error full:',e);}
@@ -1060,7 +1076,7 @@ async function loadAllFromDrive(){
 async function loadModuleFromDrive(modName){
   try{
     const fname=`qc_${modName.replace('-','')}.json`;
-    let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and trashed=false`,fields:'files(id,name)'}});
+    let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and '${folderId}' in parents and trashed=false`,fields:'files(id,name)'}});
     let files=res.result.files;
     if(files&&files.length>0){
       driveFileIds[modName]=files[0].id;
