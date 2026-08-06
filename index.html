@@ -172,7 +172,7 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;m
 
     <div id="checklist"></div>
 
-    <div class="add-form">
+    <div class="add-form" id="add-item-form">
       <h3>+ Add new inspection item</h3>
       <div class="row">
         <input type="text" id="new-section" placeholder="Section (e.g. Electricians)" style="flex:1;min-width:140px"/>
@@ -356,6 +356,10 @@ let currentModule=null;
 let filter='all';
 let currentPhotoItemId=null;
 let driveConnected=false;
+// Accounts that can fill in checklists and add photos but cannot delete anything
+const RESTRICTED_EMAILS=['nordichomesqc3@gmail.com'];
+let currentUserEmail='';
+function isRestricted(){return RESTRICTED_EMAILS.includes(currentUserEmail);}
 let folderId=null;
 let driveFileIds={};// modName -> fileId
 
@@ -473,7 +477,7 @@ function render(){
     const cls=i.status==='accepted'?'accepted':i.status==='rejected'?'rejected':i.status==='na'?'na':'';
       html+=`<div class="item ${cls}">
         <div class="item-top">
-          <span class="item-num">#${i.id}</span>
+          <span class="item-num">#${i.id}${i.filledBy&&RESTRICTED_EMAILS.includes(i.filledBy)?'<span title="Filled by colleague" style="font-size:10px;margin-left:3px;color:#5B8DEF">👤</span>':''}</span>
           <span class="item-sec-badge" style="background:${sectionColor(i.section).bg};color:${sectionColor(i.section).fg}">${i.section}</span>
           <span class="item-desc">${i.desc}</span>
         </div>
@@ -486,7 +490,7 @@ function render(){
           ${i.status==='accepted'?`<input type="date" style="padding:4px 8px;border:1px solid #1D9E75;border-radius:7px;font-size:11px;color:#1D9E75;background:#f0faf5;font-family:Arial" value="${dateToISO(i.acceptedDate)}" onchange="setItemDateFromInput(${i.id},'acceptedDate',this.value)" title="Accepted date"/>`:'' }
           ${i.status==='rejected'?`<input type="date" style="padding:4px 8px;border:1px solid #E24B4A;border-radius:7px;font-size:11px;color:#E24B4A;background:#fef0f0;font-family:Arial" value="${dateToISO(i.rejectedDate)}" onchange="setItemDateFromInput(${i.id},'rejectedDate',this.value)" title="Rejected date"/>`:'' }
           <input class="notes-inp" type="text" placeholder="Notes..." value="${escH(i.notes)}" onchange="setNotes(${i.id},this.value)"/>
-          <button class="btn-del" onclick="delItem(${i.id})">&#128465;</button>
+          ${isRestricted()?'':`<button class="btn-del" onclick="delItem(${i.id})">&#128465;</button>`}
         </div>`;
       const previews=i.photoPreviews||[];
       const driveOnlyIds=(i.photoIds||[]).filter((_,ix)=>!previews[ix]);
@@ -497,8 +501,9 @@ function render(){
             html+=`<div class="thumb"><div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:10px;color:#888;background:#f5f5f5">Uploading...</div></div>`;
           } else {
             const viewUrl=`https://drive.google.com/thumbnail?id=${pv.driveId}&sz=w200`;
+            const fallbackUrl=`https://lh3.googleusercontent.com/d/${pv.driveId}=w200`;
             const fullUrl=`https://drive.google.com/file/d/${pv.driveId}/view`;
-            html+=`<div class="thumb"><img src="${viewUrl}" onclick="window.open('${fullUrl}','_blank')" alt="Photo ${idx+1}" onerror="this.src='${pv.dataUrl}'"/><button class="del-p" onclick="delPhoto(${i.id},${idx})">&#10005;</button></div>`;
+            html+=`<div class="thumb"><img src="${viewUrl}" onclick="window.open('${fullUrl}','_blank')" alt="Photo ${idx+1}" onerror="this.src='${fallbackUrl}';this.onerror=null;"/>${isRestricted()?'':`<button class="del-p" onclick="delPhoto(${i.id},${idx})">&#10005;</button>`}</div>`;
           }
         });
         html+='</div>';
@@ -506,6 +511,8 @@ function render(){
       html+='</div>';
   });
   list.innerHTML=html||'<p style="color:#aaa;padding:20px;text-align:center">No matching items</p>';
+  const addForm=document.getElementById('add-item-form');
+  if(addForm) addForm.style.display=isRestricted()?'none':'block';
   updateStats();
 }
 
@@ -552,10 +559,13 @@ function setItemDateFromInput(id,field,isoVal){
 function setItemStatus(id,s){
   const mod=getModState();if(!mod)return;
   const item=mod.items.find(i=>i.id===id);if(!item)return;
+  // Restricted users cannot change items that are already filled in
+  if(isRestricted()&&item.status!=='pending'){return;}
   const today=new Date().toLocaleDateString('en-GB');
-  if(item.status===s){item.status='pending';item.acceptedDate='';item.rejectedDate='';}
+  if(item.status===s){item.status='pending';item.acceptedDate='';item.rejectedDate='';item.filledBy='';}
   else{
     item.status=s;
+    item.filledBy=currentUserEmail;
     if(s==='accepted'){item.rejectedDate='';if(!item.acceptedDate)item.acceptedDate=today;}
     else if(s==='rejected'){item.acceptedDate='';if(!item.rejectedDate)item.rejectedDate=today;}
     else{item.acceptedDate='';item.rejectedDate='';}
@@ -565,6 +575,8 @@ function setItemStatus(id,s){
 function setItemDate(id,field,val){
   const mod=getModState();if(!mod)return;
   const item=mod.items.find(i=>i.id===id);if(!item)return;
+  // Restricted users cannot change dates on already-filled items
+  if(isRestricted()&&item.status!=='pending'){return;}
   item[field]=val;autoSave();
 }
 function setNotes(id,v){const mod=getModState();if(!mod)return;const i=mod.items.find(i=>i.id===id);if(i){i.notes=v;autoSave();}}
@@ -932,6 +944,7 @@ function maybeEnableDrive(){
       }
       gapi.client.setToken(tok);
       driveConnected=true;updateDriveUI(true);
+      fetchUserEmail();
       if(tokenNeedsRefresh()){
         silentRefreshToken().then(()=>ensureFolderAndLoad());
       } else {
@@ -1015,11 +1028,21 @@ function handleDriveAuth(){
     const tok=gapi.client.getToken();
     tok.acquired_at=Date.now();tok.scope_version=2;
     localStorage.setItem('qc_drive_token',JSON.stringify(tok));
-    driveConnected=true;updateDriveUI(true);setStatus('Connected to Google Drive');
+    driveConnected=true;
+    await fetchUserEmail();
+    updateDriveUI(true);setStatus('Connected to Google Drive');
     await ensureFolderAndLoad();
   };
   tokenClient.requestAccessToken({prompt:'consent'});
 }
+async function fetchUserEmail(){
+  try{
+    const res=await gapi.client.request({path:'https://www.googleapis.com/oauth2/v2/userinfo',params:{fields:'email'}});
+    currentUserEmail=(res.result.email||'').toLowerCase();
+    if(isRestricted()) setStatus('Viewer mode — delete disabled');
+  }catch(e){currentUserEmail='';}
+}
+
 function updateDriveUI(connected){
   const btn=document.getElementById('drive-btn');
   const info=document.getElementById('drive-info');
@@ -1099,7 +1122,7 @@ async function loadModuleFromDrive(modName){
             const descMatches = !si.desc || si.desc===cur.desc;
             if(descMatches){
               cur.status=si.status||'pending';cur.notes=si.notes||'';
-              cur.acceptedDate=si.acceptedDate||'';cur.rejectedDate=si.rejectedDate||'';
+              cur.acceptedDate=si.acceptedDate||'';cur.rejectedDate=si.rejectedDate||'';cur.filledBy=si.filledBy||'';
               const ids=(si.photoIds||[]).filter(Boolean);
               cur.photoIds=ids;
               cur.photoPreviews=ids.map(did=>({previewId:did,driveId:did,uploading:false,dataUrl:''}));
@@ -1247,7 +1270,7 @@ async function saveToDrive(){
   try{
     const modName=currentModule;
     const fname=`qc_${modName.replace('-','')}.json`;
-    const payload={meta:modules[modName].meta,items:modules[modName].items.map(i=>({id:i.id,section:i.section,desc:i.desc,status:i.status,notes:i.notes,acceptedDate:i.acceptedDate,rejectedDate:i.rejectedDate,photoIds:(i.photoIds||[]).filter(Boolean)}))};
+    const payload={meta:modules[modName].meta,items:modules[modName].items.map(i=>({id:i.id,section:i.section,desc:i.desc,status:i.status,notes:i.notes,acceptedDate:i.acceptedDate,rejectedDate:i.rejectedDate,filledBy:i.filledBy||'',photoIds:(i.photoIds||[]).filter(Boolean)}))};
     const body=JSON.stringify(payload);
     if(driveFileIds[modName]){
       await driveRequest({path:`https://www.googleapis.com/upload/drive/v3/files/${driveFileIds[modName]}`,method:'PATCH',params:{uploadType:'media'},headers:{'Content-Type':'application/json'},body});
