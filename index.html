@@ -1075,11 +1075,9 @@ async function loadAllFromDrive(){
 
 async function loadModuleFromDrive(modName){
   try{
-    const fname=`qc_${modName.replace(/[ -]/g,'')}.json`;
-    // Search anywhere under the project folder (including subfolders)
-    let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and trashed=false`,fields:'files(id,name,parents)'}});
-    // Filter to only files that are inside our fixed project folder tree
-    let files=(res.result.files||[]);
+    const fname=`qc_${modName.replace('-','')}.json`;
+    let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and trashed=false`,fields:'files(id,name)'}});
+    let files=res.result.files;
     if(files&&files.length>0){
       driveFileIds[modName]=files[0].id;
       let dl=await driveRequest({path:`https://www.googleapis.com/drive/v3/files/${files[0].id}`,params:{alt:'media'}});
