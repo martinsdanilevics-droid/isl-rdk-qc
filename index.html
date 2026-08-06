@@ -220,7 +220,7 @@ body{font-family:Arial,sans-serif;font-size:14px;color:#333;background:#f5f5f5;m
 <script src="https://apis.google.com/js/api.js"></script>
 <script>
 const CLIENT_ID='433432963029-da3nhrredpd9t0dk6b8bb1juh7n156av.apps.googleusercontent.com';
-const SCOPES='https://www.googleapis.com/auth/drive';
+const SCOPES='https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email';
 const FOLDER_NAME='ISL_RDK_QC';
 const ITEMS_GER_CS=[
   {id:1,section:"Water supply, HVAC",desc:"Water supply and heating networks have been installed in accordance with the drawings. Pipes are marked, and pipe ends are sealed. (Panel table, 1 station)"},
@@ -937,7 +937,7 @@ async function maybeEnableDrive(){
       const tok=JSON.parse(saved);
       // Clear token if it was saved before the scope upgrade (drive.file → drive)
       // so user gets a fresh consent prompt with the correct permissions
-      if(!tok.scope_version||tok.scope_version<2){
+      if(!tok.scope_version||tok.scope_version<3){
         localStorage.removeItem('qc_drive_token');
         setStatus('Please reconnect Google Drive (permissions updated)');
         return;
@@ -966,7 +966,7 @@ function silentRefreshToken(){
         return;
       }
       const tok=gapi.client.getToken();
-      tok.acquired_at=Date.now();tok.scope_version=2;
+      tok.acquired_at=Date.now();tok.scope_version=3;
       localStorage.setItem('qc_drive_token',JSON.stringify(tok));
       driveConnected=true;
       setStatus('Drive token refreshed ✓');
@@ -1025,7 +1025,7 @@ function handleDriveAuth(){
   tokenClient.callback=async(resp)=>{
     if(resp.error)return;
     const tok=gapi.client.getToken();
-    tok.acquired_at=Date.now();tok.scope_version=2;
+    tok.acquired_at=Date.now();tok.scope_version=3;
     localStorage.setItem('qc_drive_token',JSON.stringify(tok));
     driveConnected=true;
     await fetchUserEmail();
