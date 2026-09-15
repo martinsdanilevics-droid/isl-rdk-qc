@@ -910,13 +910,68 @@ function closeLightbox(e){if(e.target===document.getElementById('lightbox'))docu
 function setStatus(msg){document.getElementById('save-status').textContent=msg;}
 
 let autoSaveTimer=null;
+const LOCAL_CACHE_KEY='qc_modules_cache_v1';
+
+function saveToLocalCache(){
+  try{
+    const cache={};
+    Object.entries(modules).forEach(([k,v])=>{
+      cache[k]={
+        meta:v.meta,
+        items:v.items.map(i=>({
+          id:i.id,section:i.section,desc:i.desc,
+          status:i.status,notes:i.notes,
+          acceptedDate:i.acceptedDate,rejectedDate:i.rejectedDate,
+          filledBy:i.filledBy||'',
+          photoIds:(i.photoIds||[]).filter(Boolean)
+        }))
+      };
+    });
+    cache.__project=currentProject;
+    cache.__module=currentModule;
+    localStorage.setItem(LOCAL_CACHE_KEY,JSON.stringify(cache));
+  }catch(e){console.warn('Local cache save error:',e);}
+}
+
+function restoreFromLocalCache(){
+  try{
+    const raw=localStorage.getItem(LOCAL_CACHE_KEY);
+    if(!raw)return false;
+    const cache=JSON.parse(raw);
+    let restored=false;
+    Object.entries(cache).forEach(([k,v])=>{
+      if(k==='__project'||k==='__module')return;
+      if(!modules[k])return;
+      if(v&&v.items){
+        v.items.forEach(si=>{
+          const cur=modules[k].items.find(i=>i.id===si.id);
+          if(cur){
+            const descMatches=!si.desc||si.desc===cur.desc;
+            if(descMatches){
+              cur.status=si.status||'pending';cur.notes=si.notes||'';
+              cur.acceptedDate=si.acceptedDate||'';cur.rejectedDate=si.rejectedDate||'';
+              cur.filledBy=si.filledBy||'';
+              const ids=(si.photoIds||[]).filter(Boolean);
+              cur.photoIds=ids;
+              cur.photoPreviews=ids.map(did=>({previewId:did,driveId:did,uploading:false,dataUrl:''}));
+            }
+          }
+        });
+        if(v.meta)modules[k].meta=v.meta;
+        restored=true;
+      }
+    });
+    return restored;
+  }catch(e){console.warn('Local cache restore error:',e);return false;}
+}
+
 function autoSave(){
-  // save meta
   if(currentModule){
     modules[currentModule].meta.inspector=document.getElementById('inspector-input').value;
     modules[currentModule].meta.pm=document.getElementById('pm-input').value;
     modules[currentModule].meta.date=document.getElementById('date-input').value;
   }
+  saveToLocalCache();
   clearTimeout(autoSaveTimer);
   autoSaveTimer=setTimeout(()=>{if(driveConnected)saveToDrive();},3000);
 }
@@ -1110,12 +1165,21 @@ async function ensureFolderAndLoad(){
 }
 
 async function loadAllFromDrive(){
-  setStatus('Loading modules from Drive...');
+  // First restore from local cache instantly
+  const hadCache=restoreFromLocalCache();
+  if(hadCache){
+    setStatus('Loaded from cache — syncing with Drive...');
+    if(currentModule)render();
+    renderOverview();
+  }
+  // Then sync with Drive in background
+  setStatus('Syncing with Drive...');
   for(const modName of getProjectCfg().modules){
     await loadModuleFromDrive(modName);
   }
   setStatus('All modules loaded ✓');
-  if(currentModule) render();
+  saveToLocalCache();
+  if(currentModule)render();
   renderOverview();
 }
 
