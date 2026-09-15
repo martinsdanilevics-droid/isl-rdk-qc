@@ -277,19 +277,42 @@ const ITEMS_GER_CS=[
 ];
 
 const PROJECTS={
-  'ISL_RDK':{
-    label:'ISL RDK Cabins',
-    folder:'ISL_RDK_QC',
-    modules:['L-1','L-2','L-3','L-4','L-5','L-6','L-7','L-8','L-9','L-10','L-11','L-12','L-13','L-14','L-15'],
-    itemsTemplate: null // uses ITEMS_TEMPLATE
-  },
   'GER_CS':{
     label:'GER CS Chimney Street',
     folder:'GER_CS_QC',
     modules:['CS 0-1','CS 0-2','CS 0-3','CS 0-4','CS 0-5','CS 0-6','CS 0-7','CS 0-8',
              'CS 1-1','CS 1-2','CS 1-3','CS 1-4','CS 1-5','CS 1-6','CS 1-7','CS 1-8',
              'CS 2-1','CS 2-2','CS 2-3','CS 2-4','CS 2-5','CS 2-6','CS 2-7','CS 2-8'],
-    itemsTemplate: ITEMS_GER_CS
+    itemsTemplate: ITEMS_GER_CS,
+    fixedFolderId:'11beoyQcnH2oIL_d8-q_1oo1w6JieQ6xz'
+  },
+  'ISL_RDK':{
+    label:'ISL RDK Cabins',
+    folder:'ISL_RDK_QC',
+    modules:['L-1','L-2','L-3','L-4','L-5','L-6','L-7','L-8','L-9','L-10','L-11','L-12','L-13','L-14','L-15'],
+    itemsTemplate: null,
+    fixedFolderId:'1KmQqvNYimcA_cE9HcvSPlt2dv8MS7IOH'
+  },
+  'ISL_Holaborg':{
+    label:'ISL Holaborg',
+    folder:'ISL_Holaborg_QC',
+    modules:['HLB 1-1','HLB 1-2','HLB 2','HLB 3-1','HLB 3-2','HLB 4','HLB 5-1','HLB 5-2'],
+    itemsTemplate: ITEMS_GER_CS,
+    fixedFolderId:null
+  },
+  'ISL_Jorfi':{
+    label:'ISL Jorfi',
+    folder:'ISL_Jorfi_QC',
+    modules:['JF 1-1','JF 1-2','JF 2','JF 3-1','JF 3-2'],
+    itemsTemplate: ITEMS_GER_CS,
+    fixedFolderId:null
+  },
+  'ISL_Mariuborg':{
+    label:'ISL Mariuborg',
+    folder:'ISL_Mariuborg_QC',
+    modules:['MB 1-1','MB 1-2','MB 2','MB 3-1','MB 3-2'],
+    itemsTemplate: ITEMS_GER_CS,
+    fixedFolderId:null
   }
 };
 let currentProject='GER_CS';
@@ -1067,33 +1090,21 @@ function setDriveBtnLoading(){
 }
 
 // Fixed Drive folder IDs — all users write to the same shared folders
-// regardless of which Google account they authenticate with.
 const FIXED_FOLDER_IDS={
   'ISL_RDK':'1KmQqvNYimcA_cE9HcvSPlt2dv8MS7IOH',
-  'GER_CS':'11beoyQcnH2oIL_d8-q_1oo1w6JieQ6xz'
+  'GER_CS':'11beoyQcnH2oIL_d8-q_1oo1w6JieQ6xz',
+  'ISL_Holaborg':'1JClasyk7IpC6pui5J5QjLsc_tyBs55UN',
+  'ISL_Jorfi':'1qM3OX5QNthzh4TnSQ0hHrYXDeGLJOxQ2',
+  'ISL_Mariuborg':'1HsFdrS9cqpHIyDc55UjSk6kAy4Mt4M0w'
 };
 
 async function ensureFolderAndLoad(){
   try{
     setStatus('Checking Drive folder...');
     const fixedId=FIXED_FOLDER_IDS[currentProject];
-    if(fixedId){
-      folderId=fixedId;
-      const folderName=getProjectCfg().folder;
-      document.getElementById('drive-folder-link').innerHTML=`<a href="https://drive.google.com/drive/folders/${fixedId}" target="_blank">Open in Drive</a>`;
-    } else {
-      // Fallback: search by name if no fixed ID configured
-      const activeFolderName=getProjectCfg().folder;
-      let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${activeFolderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id,name,webViewLink)'}});
-      let files=res.result.files;
-      if(files&&files.length>0){
-        folderId=files[0].id;
-        document.getElementById('drive-folder-link').innerHTML=`<a href="${files[0].webViewLink}" target="_blank">Open in Drive</a>`;
-      } else {
-        let cr=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',method:'POST',body:{name:activeFolderName,mimeType:'application/vnd.google-apps.folder'}});
-        folderId=cr.result.id;
-      }
-    }
+    if(!fixedId){setStatus('No folder configured for this project.');return;}
+    folderId=fixedId;
+    document.getElementById('drive-folder-link').innerHTML=`<a href="https://drive.google.com/drive/folders/${fixedId}" target="_blank">Open in Drive</a>`;
     await loadAllFromDrive();
   }catch(e){setStatus('Drive error: '+e.message);console.error('Drive error full:',e);}
 }
