@@ -525,8 +525,7 @@ function render(){
           } else {
             const viewUrl=`https://drive.google.com/thumbnail?id=${pv.driveId}&sz=w200`;
             const fallbackUrl=`https://lh3.googleusercontent.com/d/${pv.driveId}=w200`;
-            const fullUrl=`https://drive.google.com/file/d/${pv.driveId}/view`;
-            html+=`<div class="thumb"><img src="${viewUrl}" onclick="window.open('${fullUrl}','_blank')" alt="Photo ${idx+1}" onerror="this.src='${fallbackUrl}';this.onerror=null;"/>${isRestricted()?'':`<button class="del-p" onclick="delPhoto(${i.id},${idx})">&#10005;</button>`}</div>`;
+            html+=`<div class="thumb"><img src="${viewUrl}" onclick="openGDrivePhoto('${pv.driveId}','${viewUrl}','${fallbackUrl}')" alt="Photo ${idx+1}" onerror="this.src='${fallbackUrl}';this.onerror=null;" style="cursor:zoom-in"/>${isRestricted()?'':`<button class="del-p" onclick="delPhoto(${i.id},${idx})">&#10005;</button>`}</div>`;
           }
         });
         html+='</div>';
@@ -905,7 +904,26 @@ async function handlePhotos(e){
 }
 
 function readFile(f){return new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsDataURL(f);});}
+function openGDrivePhoto(driveId, thumbUrl, fallbackUrl){
+  const lbImg=document.getElementById('lightbox-img');
+  const lightbox=document.getElementById('lightbox');
+  // Show thumbnail instantly
+  const thumbEl=document.querySelector(`img[src*="${driveId}"]`);
+  lbImg.src=thumbEl&&thumbEl.src?thumbEl.src:(thumbUrl||fallbackUrl);
+  lightbox.classList.add('open');
+  // Load full size in background
+  const fullUrl=`https://drive.google.com/thumbnail?id=${driveId}&sz=w1600`;
+  const img=new Image();
+  img.onload=()=>{lbImg.src=img.src;};
+  img.onerror=()=>{
+    const img2=new Image();
+    img2.onload=()=>{lbImg.src=img2.src;};
+    img2.src=`https://lh3.googleusercontent.com/d/${driveId}=w1600`;
+  };
+  img.src=fullUrl;
+}
 function openLightbox(src){document.getElementById('lightbox-img').src=src;document.getElementById('lightbox').classList.add('open');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementById('lightbox').classList.remove('open');});
 function closeLightbox(e){if(e.target===document.getElementById('lightbox'))document.getElementById('lightbox').classList.remove('open');}
 function setStatus(msg){document.getElementById('save-status').textContent=msg;}
 
