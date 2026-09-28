@@ -408,12 +408,9 @@ function switchProject(projKey){
     if(!modules[n]) modules[n]={meta:{inspector:'Mārtiņš Danilevičs',pm:'Eva Litauniece',date:''},items:freshItems(currentProject)};
   });
   // update folder and reload from drive
-  if(driveConnected){
-    folderId=null;
-    moduleFolderIds={};
-    driveFileIds={};
-    ensureFolderAndLoad();
-  }
+  document.getElementById('project-select').value=projKey;
+  if(driveConnected)ensureFolderAndLoad();
+  saveToLocalCache();
   document.getElementById('project-title').textContent=PROJECTS[projKey].label+' — QC-3';
   renderOverview();
 }
@@ -740,12 +737,13 @@ async function uploadCamPhotoNow(dataUrl, idx){
   const today=new Date().toLocaleDateString('en-GB');
   if(!item.acceptedDate) item.acceptedDate=today;
   if(currentModule===item.__mod) render();
-  if(!driveConnected||!folderId) return;
+  if(!driveConnected) return;
+  const photoMod=item.__mod||currentModule;
   let driveId=null,retries=3;
   while(retries>0&&!driveId){
     try{
-      const fname=`${currentModule}_item${item.id}_${Date.now()}.jpg`;
-      driveId=await uploadPhotoToDrive(dataUrl,fname);
+      const fname=`${photoMod}_item${item.id}_${Date.now()}.jpg`;
+      driveId=await uploadPhotoToDrive(dataUrl,fname,photoMod);
     }catch(err){retries--;if(retries>0)await new Promise(r=>setTimeout(r,1500));}
   }
   if(driveId){
@@ -759,7 +757,7 @@ async function uploadCamPhotoNow(dataUrl, idx){
   }
   camUploadQueue=camUploadQueue.filter(p=>p!==previewId);
   render();
-  autoSave();
+  autoSave(photoMod);
 }
 
 function getCamItem(){
@@ -844,7 +842,8 @@ async function handlePhotos(e){
   const files=[...e.target.files];
   const mod=getModState();if(!mod)return;
   const item=mod.items.find(i=>i.id===currentPhotoItemId);if(!item)return;
-  if(!driveConnected||!folderId){setStatus('Connect Google Drive first.');e.target.value='';return;}
+  const photoMod=currentModule; // uploads keep going to this module even if the user switches
+  if(!driveConnected){setStatus('Connect Google Drive first.');e.target.value='';return;}
   item.photoPreviews=item.photoPreviews||[];
   // Detect a date from the first photo (filename > EXIF > file lastModified) and use it for acceptedDate
   if(!item.acceptedDate&&files.length>0){
@@ -884,8 +883,8 @@ async function handlePhotos(e){
     let driveId=null,retries=3;
     while(retries>0&&!driveId){
       try{
-        const fname=`${currentModule}_item${item.id}_${Date.now()}.jpg`;
-        driveId=await uploadPhotoToDrive(dataUrl,fname);
+        const fname=`${photoMod}_item${item.id}_${Date.now()}.jpg`;
+        driveId=await uploadPhotoToDrive(dataUrl,fname,photoMod);
       }catch(err){retries--;if(retries>0)await new Promise(r=>setTimeout(r,1500));}
     }
     if(driveId){
@@ -900,7 +899,7 @@ async function handlePhotos(e){
   }
   const uploaded=item.photoPreviews.filter(p=>!p.uploading).length;
   setStatus(`Upload complete — ${uploaded} photo${uploaded>1?'s':''} saved ✓`);
-  autoSave();
+  autoSave(photoMod);
 }
 
 function readFile(f){return new Promise(res=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.readAsDataURL(f);});}
@@ -928,89 +927,133 @@ function closeLightbox(e){if(e.target===document.getElementById('lightbox'))docu
 function setStatus(msg){document.getElementById('save-status').textContent=msg;}
 
 let autoSaveTimer=null;
-const LOCAL_CACHE_KEY='qc_modules_cache_v1';
+// ---- LOCAL CACHE ----
+// v2: per-module Drive version + unsaved-changes list. Old v1 cache is still read once.
+const LOCAL_CACHE_KEY='qc_modules_cache_v2';
+const OLD_CACHE_KEY='qc_modules_cache_v1';
+let driveVersions={};       // modName -> Drive file version/modifiedTime of the data shown
+let dirtyModules=new Set(); // modules with local changes not yet saved to Drive
+let editSeq={};             // modName -> edit counter (a save never clears newer edits)
+let lastSyncAt=0;
+let syncGen=0;
+
+// Each module belongs to exactly one project — used to pick the right Drive folder
+const PROJECT_OF_MODULE={};
+Object.entries(PROJECTS).forEach(([pk,p])=>p.modules.forEach(m=>{PROJECT_OF_MODULE[m]=pk;}));
+function moduleFileName(modName){return `qc_${modName.replace('-','')}.json`;}
+
+function modulePayload(modName){
+  const m=modules[modName];
+  return {meta:m.meta,items:m.items.map(i=>({id:i.id,section:i.section,desc:i.desc,status:i.status,notes:i.notes,
+    acceptedDate:i.acceptedDate,rejectedDate:i.rejectedDate,filledBy:i.filledBy||'',photoIds:(i.photoIds||[]).filter(Boolean)}))};
+}
+
+// Rebuilds a module from its project's template + saved data (Drive JSON or cache)
+function applySavedToModule(modName,saved){
+  const mod=modules[modName];
+  if(!mod||!saved)return;
+  const projKey=PROJECT_OF_MODULE[modName];
+  const tmpl=(PROJECTS[projKey]&&PROJECTS[projKey].itemsTemplate)||ITEMS_TEMPLATE;
+  const items=freshItems(projKey);
+  (saved.items||[]).forEach(si=>{
+    const ids=(si.photoIds||[]).filter(Boolean);
+    const previews=ids.map(did=>({previewId:did,driveId:did,uploading:false,dataUrl:''}));
+    const cur=items.find(i=>i.id===si.id);
+    if(cur){
+      // Only trust saved data if the description still matches the template item
+      if(!si.desc||si.desc===cur.desc){
+        cur.status=si.status||'pending';cur.notes=si.notes||'';
+        cur.acceptedDate=si.acceptedDate||'';cur.rejectedDate=si.rejectedDate||'';cur.filledBy=si.filledBy||'';
+        cur.photoIds=ids;cur.photoPreviews=previews;
+      }else{
+        console.warn(`Skipped mismatched saved item #${si.id} in ${modName}: saved desc differs from current template`);
+      }
+    }else if(!tmpl.find(t=>t.id===si.id)){
+      items.push({...si,status:si.status||'pending',photos:[],photoIds:ids,photoPreviews:previews});
+    }
+  });
+  items.sort((a,b)=>a.id-b.id);
+  mod.items=items;
+  if(saved.meta)mod.meta=saved.meta;
+}
 
 function saveToLocalCache(){
   try{
-    const cache={};
-    Object.entries(modules).forEach(([k,v])=>{
-      cache[k]={
-        meta:v.meta,
-        items:v.items.map(i=>({
-          id:i.id,section:i.section,desc:i.desc,
-          status:i.status,notes:i.notes,
-          acceptedDate:i.acceptedDate,rejectedDate:i.rejectedDate,
-          filledBy:i.filledBy||'',
-          photoIds:(i.photoIds||[]).filter(Boolean)
-        }))
-      };
-    });
-    cache.__project=currentProject;
-    cache.__module=currentModule;
+    const cache={v:2,project:currentProject,module:currentModule,modules:{},versions:driveVersions,dirty:[...dirtyModules]};
+    Object.keys(modules).forEach(k=>{cache.modules[k]=modulePayload(k);});
     localStorage.setItem(LOCAL_CACHE_KEY,JSON.stringify(cache));
+    localStorage.removeItem(OLD_CACHE_KEY);
   }catch(e){console.warn('Local cache save error:',e);}
 }
 
 function restoreFromLocalCache(){
   try{
-    const raw=localStorage.getItem(LOCAL_CACHE_KEY);
-    if(!raw)return false;
-    const cache=JSON.parse(raw);
-    let restored=false;
-    Object.entries(cache).forEach(([k,v])=>{
-      if(k==='__project'||k==='__module')return;
-      if(!modules[k])return;
-      if(v&&v.items){
-        v.items.forEach(si=>{
-          const cur=modules[k].items.find(i=>i.id===si.id);
-          if(cur){
-            const descMatches=!si.desc||si.desc===cur.desc;
-            if(descMatches){
-              cur.status=si.status||'pending';cur.notes=si.notes||'';
-              cur.acceptedDate=si.acceptedDate||'';cur.rejectedDate=si.rejectedDate||'';
-              cur.filledBy=si.filledBy||'';
-              const ids=(si.photoIds||[]).filter(Boolean);
-              cur.photoIds=ids;
-              cur.photoPreviews=ids.map(did=>({previewId:did,driveId:did,uploading:false,dataUrl:''}));
-            }
-          }
-        });
-        if(v.meta)modules[k].meta=v.meta;
-        restored=true;
-      }
-    });
-    return restored;
-  }catch(e){console.warn('Local cache restore error:',e);return false;}
+    let raw=localStorage.getItem(LOCAL_CACHE_KEY);
+    if(raw){
+      const cache=JSON.parse(raw);
+      Object.entries(cache.modules||{}).forEach(([k,v])=>{if(modules[k])applySavedToModule(k,v);});
+      driveVersions=cache.versions||{};
+      dirtyModules=new Set(cache.dirty||[]);
+      return cache;
+    }
+    raw=localStorage.getItem(OLD_CACHE_KEY); // one-time migration from the old cache format
+    if(raw){
+      const old=JSON.parse(raw);
+      Object.entries(old).forEach(([k,v])=>{if(!k.startsWith('__')&&modules[k]&&v&&v.items)applySavedToModule(k,v);});
+      return {project:old.__project,module:old.__module};
+    }
+  }catch(e){console.warn('Local cache restore error:',e);}
+  return null;
 }
 
-function autoSave(){
+function markDirty(modName){
+  if(!modName||!modules[modName])return;
+  dirtyModules.add(modName);
+  editSeq[modName]=(editSeq[modName]||0)+1;
+}
+function hasUploadingPhotos(modName){
+  return (modules[modName]?.items||[]).some(i=>(i.photoPreviews||[]).some(p=>p.uploading));
+}
+
+// modName: the module that changed (defaults to the open one — photo uploads pass their own)
+function autoSave(modName){
   if(currentModule){
     modules[currentModule].meta.inspector=document.getElementById('inspector-input').value;
     modules[currentModule].meta.pm=document.getElementById('pm-input').value;
     modules[currentModule].meta.date=document.getElementById('date-input').value;
   }
+  markDirty(typeof modName==='string'?modName:currentModule);
   saveToLocalCache();
   clearTimeout(autoSaveTimer);
-  autoSaveTimer=setTimeout(()=>{if(driveConnected)saveToDrive();},3000);
+  autoSaveTimer=setTimeout(()=>{if(driveConnected)flushDirty();},3000);
 }
 
 // ---- GOOGLE DRIVE ----
 let tokenClient,gapiInited=false,gisInited=false;
 let moduleFolderIds={};
 
+function projectFolderIdFor(modName){
+  const pk=PROJECT_OF_MODULE[modName];
+  return FIXED_FOLDER_IDS[pk]||(PROJECTS[pk]&&PROJECTS[pk].fixedFolderId)||null;
+}
+
+// Module folder lives ONLY in its own project's folder. Throws instead of falling back
+// to another folder (that fallback is how CS/L folders ended up in the wrong project).
 async function ensureModuleFolder(modName){
-  if(moduleFolderIds[modName]) return moduleFolderIds[modName];
-  if(!folderId) return null;
-  try{
-    let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${modName}' and '${folderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,fields:'files(id)'}});
-    if(res.result.files&&res.result.files.length>0){
-      moduleFolderIds[modName]=res.result.files[0].id;
-    } else {
-      let cr=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',method:'POST',body:{name:modName,mimeType:'application/vnd.google-apps.folder',parents:[folderId]}});
-      moduleFolderIds[modName]=cr.result.id;
-    }
-    return moduleFolderIds[modName];
-  }catch(e){console.error('Subfolder error:',e);return folderId;}
+  if(moduleFolderIds[modName])return moduleFolderIds[modName];
+  const parent=projectFolderIdFor(modName);
+  if(!parent)throw new Error('No Drive folder configured for '+modName);
+  const res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{
+    q:`name='${modName}' and '${parent}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    fields:'files(id)',orderBy:'createdTime'}});
+  if(res.result.files&&res.result.files.length>0){
+    moduleFolderIds[modName]=res.result.files[0].id;
+  }else{
+    const cr=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',method:'POST',
+      body:{name:modName,mimeType:'application/vnd.google-apps.folder',parents:[parent]}});
+    moduleFolderIds[modName]=cr.result.id;
+  }
+  return moduleFolderIds[modName];
 }
 
 function gapiLoaded(){
@@ -1040,7 +1083,7 @@ async function maybeEnableDrive(){
       }
       gapi.client.setToken(tok);
       driveConnected=true;updateDriveUI(true);
-      await fetchUserEmail();
+      fetchUserEmail();
       if(tokenNeedsRefresh()){
         await silentRefreshToken();
       }
@@ -1183,70 +1226,66 @@ async function ensureFolderAndLoad(){
 }
 
 async function loadAllFromDrive(){
-  // First restore from local cache instantly
-  const hadCache=restoreFromLocalCache();
-  if(hadCache){
-    setStatus('Loaded from cache — syncing with Drive...');
-    if(currentModule)render();
-    renderOverview();
-  }
-  // Then sync with Drive in background
+  const gen=++syncGen;
+  const projKey=currentProject;
+  const mods=PROJECTS[projKey].modules.slice();
+  const projFolder=projectFolderIdFor(mods[0]);
   setStatus('Syncing with Drive...');
-  for(const modName of getProjectCfg().modules){
-    await loadModuleFromDrive(modName);
-  }
-  setStatus('All modules loaded ✓');
-  saveToLocalCache();
-  if(currentModule)render();
-  renderOverview();
-}
-
-async function loadModuleFromDrive(modName){
+  let changed=[],failed=0;
   try{
-    const fname=`qc_${modName.replace('-','')}.json`;
-    let res=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{q:`name='${fname}' and trashed=false`,fields:'files(id,name)'}});
-    let files=res.result.files;
-    if(files&&files.length>0){
-      driveFileIds[modName]=files[0].id;
-      let dl=await driveRequest({path:`https://www.googleapis.com/drive/v3/files/${files[0].id}`,params:{alt:'media'}});
-      const saved=dl.result;
-      if(saved&&saved.items){
-        saved.items.forEach(si=>{
-          let cur=modules[modName].items.find(i=>i.id===si.id);
-          if(cur){
-            // Guard: only trust saved status/dates if the description still matches —
-            // otherwise this id belonged to a different checklist item under an older
-            // numbering and applying it here would mix up unrelated items.
-            const descMatches = !si.desc || si.desc===cur.desc;
-            if(descMatches){
-              cur.status=si.status||'pending';cur.notes=si.notes||'';
-              cur.acceptedDate=si.acceptedDate||'';cur.rejectedDate=si.rejectedDate||'';cur.filledBy=si.filledBy||'';
-              const ids=(si.photoIds||[]).filter(Boolean);
-              cur.photoIds=ids;
-              cur.photoPreviews=ids.map(did=>({previewId:did,driveId:did,uploading:false,dataUrl:''}));
-            } else {
-              console.warn(`Skipped mismatched saved item #${si.id} in ${modName}: saved desc differs from current template`);
-            }
-          } else {
-            // new item added to template after module was created - add it
-            const tmpl=(PROJECTS[currentProject]&&PROJECTS[currentProject].itemsTemplate)||ITEMS_TEMPLATE;
-            const newItem=tmpl.find(t=>t.id===si.id);
-            if(!newItem) modules[modName].items.push({...si,status:si.status||'pending',photos:[],photoIds:(si.photoIds||[]).filter(Boolean),photoPreviews:(si.photoIds||[]).filter(Boolean).map(did=>({previewId:did,driveId:did,uploading:false,dataUrl:''}))});
-          }
+    // (1) module folders — only direct children of THIS project's folder
+    const fRes=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{
+      q:`'${projFolder}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields:'files(id,name)',orderBy:'createdTime',pageSize:1000}});
+    const folderOfMod={};
+    (fRes.result.files||[]).forEach(f=>{if(mods.includes(f.name)&&!folderOfMod[f.name])folderOfMod[f.name]=f.id;});
+    Object.assign(moduleFolderIds,folderOfMod);
+    const folderIds=Object.values(folderOfMod);
+    // (2) the qc_*.json files — only inside those module folders
+    const found={};
+    if(folderIds.length){
+      const parentsQ=folderIds.map(id=>`'${id}' in parents`).join(' or ');
+      let pageToken='';
+      do{
+        const params={q:`(${parentsQ}) and name contains 'qc_' and trashed=false`,
+          fields:'nextPageToken,files(id,name,parents,version,modifiedTime)',pageSize:1000};
+        if(pageToken)params.pageToken=pageToken;
+        const jRes=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params});
+        (jRes.result.files||[]).forEach(f=>{
+          const mod=Object.keys(folderOfMod).find(m=>(f.parents||[]).includes(folderOfMod[m]));
+          if(!mod||f.name!==moduleFileName(mod))return;
+          // if a folder somehow holds two copies, use the most recently modified one
+          if(!found[mod]||f.modifiedTime>found[mod].modifiedTime)found[mod]=f;
         });
-      }
-      if(saved&&saved.meta) modules[modName].meta=saved.meta;
-      // Add any new template items that don't exist in saved data yet
-      const tmpl=(PROJECTS[currentProject]&&PROJECTS[currentProject].itemsTemplate)||ITEMS_TEMPLATE;
-      tmpl.forEach(ti=>{
-        if(!modules[modName].items.find(i=>i.id===ti.id)){
-          modules[modName].items.push({...ti,status:'pending',notes:'',acceptedDate:'',rejectedDate:'',photos:[],photoIds:[],photoPreviews:[]});
-        }
-      });
-      // Sort by id
-      modules[modName].items.sort((a,b)=>a.id-b.id);
+        pageToken=jRes.result.nextPageToken||'';
+      }while(pageToken);
     }
-  }catch(e){console.warn('Load error for '+modName,e);}
+    // (3) download only files that changed since the cached version
+    await Promise.all(mods.map(async m=>{
+      const f=found[m];
+      if(!f)return;
+      driveFileIds[m]=f.id;
+      const ver=`${f.version}|${f.modifiedTime}`;
+      if(dirtyModules.has(m))return;            // local unsaved changes win
+      if(driveVersions[m]===ver)return;         // unchanged since cached
+      try{
+        const dl=await driveRequest({path:`https://www.googleapis.com/drive/v3/files/${f.id}`,params:{alt:'media'}});
+        const saved=typeof dl.result==='string'?JSON.parse(dl.result):dl.result;
+        if(dirtyModules.has(m)||hasUploadingPhotos(m))return; // user started editing meanwhile
+        applySavedToModule(m,saved);
+        driveVersions[m]=ver;
+        changed.push(m);
+      }catch(e){failed++;console.warn('Load error for '+m,e);}
+    }));
+  }catch(e){failed++;console.error('Drive sync error:',e);setStatus('Drive sync error: '+(e.message||e.status||e));}
+  lastSyncAt=Date.now();
+  saveToLocalCache();
+  if(gen!==syncGen||projKey!==currentProject)return;
+  if(currentModule&&changed.includes(currentModule))render();
+  renderOverview();
+  if(!failed)setStatus('All modules loaded ✓');
+  else if(failed&&changed.length)setStatus(`Loaded — ${failed} module(s) failed`);
+  if(mods.some(m=>dirtyModules.has(m)))flushDirty(); // push edits that never reached Drive
 }
 
 async function resetModule(){
@@ -1357,46 +1396,80 @@ async function recoverPhotos(){
   }catch(e){setStatus('Recover error: '+e.message);console.error(e);}
 }
 
+async function saveModuleToDrive(modName){
+  const seq=editSeq[modName]||0;
+  const body=JSON.stringify(modulePayload(modName));
+  const fname=moduleFileName(modName);
+  let fileId=driveFileIds[modName];
+  if(!fileId){
+    // Before creating, look for an existing JSON in this module's folder (prevents duplicates)
+    const modFolder=await ensureModuleFolder(modName);
+    const ex=await driveRequest({path:'https://www.googleapis.com/drive/v3/files',params:{
+      q:`name='${fname}' and '${modFolder}' in parents and trashed=false`,fields:'files(id,modifiedTime)',orderBy:'modifiedTime desc'}});
+    if(ex.result.files&&ex.result.files.length)fileId=ex.result.files[0].id;
+    else{
+      const boundary='bound_xyz';
+      const mp=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify({name:fname,parents:[modFolder]})}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
+      const cr=await driveRequest({path:'https://www.googleapis.com/upload/drive/v3/files',method:'POST',
+        params:{uploadType:'multipart',fields:'id,version,modifiedTime'},headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body:mp});
+      driveFileIds[modName]=cr.result.id;
+      driveVersions[modName]=`${cr.result.version}|${cr.result.modifiedTime}`;
+      if((editSeq[modName]||0)===seq)dirtyModules.delete(modName);
+      saveToLocalCache();
+      return;
+    }
+  }
+  const up=await driveRequest({path:`https://www.googleapis.com/upload/drive/v3/files/${fileId}`,method:'PATCH',
+    params:{uploadType:'media',fields:'id,version,modifiedTime'},headers:{'Content-Type':'application/json'},body});
+  driveFileIds[modName]=fileId;
+  if(up&&up.result&&up.result.version)driveVersions[modName]=`${up.result.version}|${up.result.modifiedTime}`;
+  if((editSeq[modName]||0)===seq)dirtyModules.delete(modName);
+  saveToLocalCache();
+}
+
+let flushing=false,flushAgain=false;
+async function flushDirty(){
+  if(!driveConnected)return;
+  if(flushing){flushAgain=true;return;}
+  flushing=true;
+  try{
+    do{
+      flushAgain=false;
+      const list=[...dirtyModules].filter(m=>modules[m]&&!hasUploadingPhotos(m));
+      if(!list.length)break;
+      setStatus('Saving...');
+      for(const m of list)await saveModuleToDrive(m);
+      setStatus('Saved ✓ '+new Date().toLocaleTimeString());
+      renderOverview();
+    }while(flushAgain);
+  }catch(e){setStatus('Save error: '+(e.message||(e.result&&e.result.error&&e.result.error.message)||e));console.error(e);}
+  finally{flushing=false;}
+}
+
 async function saveToDrive(){
   if(!driveConnected){alert('Please connect Google Drive first.');return;}
   if(!currentModule){alert('Please select a module first.');return;}
-  // save current meta
   modules[currentModule].meta.inspector=document.getElementById('inspector-input').value;
   modules[currentModule].meta.pm=document.getElementById('pm-input').value;
   modules[currentModule].meta.date=document.getElementById('date-input').value;
-  setStatus('Saving...');
-  try{
-    const modName=currentModule;
-    const fname=`qc_${modName.replace('-','')}.json`;
-    const payload={meta:modules[modName].meta,items:modules[modName].items.map(i=>({id:i.id,section:i.section,desc:i.desc,status:i.status,notes:i.notes,acceptedDate:i.acceptedDate,rejectedDate:i.rejectedDate,filledBy:i.filledBy||'',photoIds:(i.photoIds||[]).filter(Boolean)}))};
-    const body=JSON.stringify(payload);
-    if(driveFileIds[modName]){
-      await driveRequest({path:`https://www.googleapis.com/upload/drive/v3/files/${driveFileIds[modName]}`,method:'PATCH',params:{uploadType:'media'},headers:{'Content-Type':'application/json'},body});
-    } else {
-      const modSubFolder=(await ensureModuleFolder(modName))||folderId;
-      const meta={name:fname,parents:[modSubFolder]};
-      const boundary='bound_xyz';
-      const mp=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
-      let cr=await driveRequest({path:'https://www.googleapis.com/upload/drive/v3/files',method:'POST',params:{uploadType:'multipart'},headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body:mp});
-      driveFileIds[modName]=cr.result.id;
-    }
-    setStatus('Saved ✓ '+new Date().toLocaleTimeString());
-    renderOverview();
-  }catch(e){setStatus('Save error: '+e.message);}
+  markDirty(currentModule);
+  saveToLocalCache();
+  clearTimeout(autoSaveTimer);
+  await flushDirty();
 }
 
-async function uploadPhotoToDrive(dataUrl,filename){
-  if(!driveConnected||!folderId)return null;
-  try{
-    const base64=dataUrl.split(',')[1];
-    const mime=dataUrl.split(';')[0].split(':')[1];
-    const targetFolder=(await ensureModuleFolder(currentModule))||folderId;
-    const meta={name:filename,parents:[targetFolder]};
-    const boundary='photo_bound';
-    const body=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: ${mime}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
-    let res=await driveRequest({path:'https://www.googleapis.com/upload/drive/v3/files',method:'POST',params:{uploadType:'multipart'},headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body});
-    return res.result.id;
-  }catch(e){console.error('Photo upload error:',e);return null;}
+// Throws on failure so the caller's retry loop actually counts down
+async function uploadPhotoToDrive(dataUrl,filename,modName){
+  if(!driveConnected)throw new Error('Drive not connected');
+  modName=modName||currentModule;
+  const base64=dataUrl.split(',')[1];
+  const mime=dataUrl.split(';')[0].split(':')[1];
+  const targetFolder=await ensureModuleFolder(modName);
+  const meta={name:filename,parents:[targetFolder]};
+  const boundary='photo_bound';
+  const body=`--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(meta)}\r\n--${boundary}\r\nContent-Type: ${mime}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
+  const res=await driveRequest({path:'https://www.googleapis.com/upload/drive/v3/files',method:'POST',params:{uploadType:'multipart'},headers:{'Content-Type':`multipart/related; boundary=${boundary}`},body});
+  return res.result.id;
 }
 
 // ---- EXPORT ----
@@ -1471,8 +1544,20 @@ ${photoSec}</body></html>`;
 }
 
 initDropdown();
+(function restoreSession(){
+  const cache=restoreFromLocalCache();
+  if(!cache)return;
+  if(cache.project&&PROJECTS[cache.project]&&cache.project!==currentProject)switchProject(cache.project);
+  if(cache.module&&getProjectCfg().modules.includes(cache.module))switchModule(cache.module);
+  setStatus('Loaded from cache');
+})();
 renderOverview();
 setDriveBtnLoading();
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState!=='visible'||!driveConnected)return;
+  if(dirtyModules.size)flushDirty();
+  if(Date.now()-lastSyncAt>2*60*1000)loadAllFromDrive();
+});
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
 <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
