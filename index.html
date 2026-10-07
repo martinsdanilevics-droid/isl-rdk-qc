@@ -506,6 +506,7 @@ function render(){
           <button class="btn-reject ${i.status==='rejected'?'active':''}" onclick="setItemStatus(${i.id},'rejected')">&#10007; Rejected</button>
           <button class="btn-na ${i.status==='na'?'active':''}" onclick="setItemStatus(${i.id},'na')">N/A</button>
           <button class="btn-photo" onclick="openPhotoUpload(${i.id})">&#128247; Photo (${(i.photoIds||[]).filter(Boolean).length+(i.photoPreviews||[]).filter(p=>p.uploading).length})</button>
+          ${isQC2Item(i)&&QC2_PROJECTS.includes(currentProject)?`<button class="btn-photo" style="border-style:solid;border-color:#2d5a3d;color:#2d5a3d;font-weight:700" onclick="openQC2('${escH(currentModule)}')">&#128208; QC-2 dimensions</button>`:''}
           ${currentPhotoItemId===i.id?`<button style="padding:5px 13px;border:1.5px solid #1D9E75;border-radius:7px;background:#e6f7f0;color:#1D9E75;font-size:12px;font-weight:700;cursor:pointer;font-family:Arial" onclick="quickShoot(${i.id})">📷+</button>`:''}
           ${i.status==='accepted'?`<input type="date" style="padding:4px 8px;border:1px solid #1D9E75;border-radius:7px;font-size:11px;color:#1D9E75;background:#f0faf5;font-family:Arial" value="${dateToISO(i.acceptedDate)}" onchange="setItemDateFromInput(${i.id},'acceptedDate',this.value)" title="Accepted date"/>`:'' }
           ${i.status==='rejected'?`<input type="date" style="padding:4px 8px;border:1px solid #E24B4A;border-radius:7px;font-size:11px;color:#E24B4A;background:#fef0f0;font-family:Arial" value="${dateToISO(i.rejectedDate)}" onchange="setItemDateFromInput(${i.id},'rejectedDate',this.value)" title="Rejected date"/>`:'' }
@@ -561,6 +562,11 @@ function sectionColor(section){
   };
   return map[section]||{bg:'#f0f0f0',fg:'#666'};
 }
+// ---- Link to the QC-2 dimensions app (Nordic_QC3 repo, data in OneDrive) ----
+const QC2_APP='https://martinsdanilevics-droid.github.io/Nordic_QC3/gabariti.html';
+const QC2_PROJECTS=['GER_CS','ISL_Holaborg','ISL_Jorfi','ISL_Mariuborg'];
+function isQC2Item(i){return /Form No\.?\s*QC-2\b/i.test(i.desc||'');}
+function openQC2(mod){window.open(`${QC2_APP}?project=${encodeURIComponent(currentProject)}&module=${encodeURIComponent(mod)}`,'_blank');}
 function escH(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 function dateToISO(d){
   if(!d) return '';
